@@ -1,30 +1,56 @@
 <template>
-  <section class="section">
-    <div class="container">
-      <h2 class="mb-8 text-2xl font-bold text-gray-900 sm:text-3xl">
-        Skills
-      </h2>
-      <ul class="space-y-6">
+  <section :class="sectionRootClass">
+    <div :class="sectionContentClass">
+      <h2
+        class="mb-2 text-[clamp(1.375rem,4vw,1.875rem)] font-bold tracking-tight text-[var(--skills-ink)]"
+        v-reading-chars="SKILLS_TITLE"
+      />
+      <p
+        class="mb-8 max-w-lg text-sm leading-[1.55] text-[var(--skills-muted)]"
+        v-reading-chars="SKILLS_INTRO"
+      />
+
+      <ul class="m-0 flex list-none flex-col gap-8 p-0" role="list">
         <li
           v-for="(group, idx) in skills"
           :key="idx"
-          class="flex flex-col gap-2"
         >
-          <span
+          <h3
             v-if="group.category"
-            class="text-sm font-semibold uppercase tracking-wider text-gray-500"
-          >
-            {{ group.category }}
-          </span>
-          <div class="flex flex-wrap gap-2">
-            <span
+            class="mb-3.5 text-[0.7rem] font-bold uppercase tracking-[0.14em] text-[var(--skills-faint)]"
+            v-reading-chars="group.category"
+          />
+          <ul class="m-0 flex list-none flex-col gap-[1.125rem] p-0" role="list">
+            <li
               v-for="(item, i) in group.items"
-              :key="i"
-              class="rounded-md bg-gray-200/80 px-3 py-1.5 text-sm font-medium text-gray-800"
+              :key="`${idx}-${i}`"
             >
-              {{ item }}
-            </span>
-          </div>
+              <div class="mb-[0.35rem] flex items-baseline justify-between gap-4">
+                <span
+                  class="text-[0.9375rem] font-semibold text-[var(--skills-ink)]"
+                  v-reading-chars="item.name"
+                />
+                <span
+                  class="text-xs font-semibold tabular-nums text-[var(--skills-muted)]"
+                  aria-hidden="true"
+                  v-reading-chars="`${clampMastery(item.mastery)}%`"
+                />
+              </div>
+              <div
+                class="h-2 overflow-hidden rounded-full border border-[var(--skills-track-border,rgba(28,25,23,0.1))] bg-[var(--section-progress-track,rgba(28,25,23,0.2))] shadow-[inset_0_2px_4px_var(--section-progress-track-shade,rgba(12,10,9,0.18)),inset_0_-1px_0_var(--skills-track-highlight,rgba(255,250,240,0.07))]"
+                role="progressbar"
+                :aria-valuenow="clampMastery(item.mastery)"
+                aria-valuemin="0"
+                aria-valuemax="100"
+                :aria-label="`Mastery for ${item.name}: ${clampMastery(item.mastery)} percent`"
+              >
+                <div
+                  class="h-full min-w-1 rounded-full bg-[#fff5e0] shadow-[0_0_14px_rgba(255,245,224,0.55)] transition-[width] duration-[650ms] ease-[cubic-bezier(0.22,1,0.36,1)]"
+                  :style="{ width: `${clampMastery(item.mastery)}%` }"
+                />
+              </div>
+            </li>
+          </ul>
         </li>
       </ul>
     </div>
@@ -33,8 +59,18 @@
 
 <script setup lang="ts">
 import type { CvSkill } from '@/data/cv';
+import { sectionContentClass, sectionRootClass } from '@/constants/sectionLayout';
+
+/** Static copy for v-reading-chars (avoids huge literals in template). */
+const SKILLS_TITLE = 'Skills';
+const SKILLS_INTRO =
+  'Mastery is self-assessed from day-to-day project work — progress shows relative comfort, not a test score.';
 
 defineProps<{
   skills: CvSkill[];
 }>();
+
+function clampMastery(n: number): number {
+  return Math.max(0, Math.min(100, Math.round(n)));
+}
 </script>

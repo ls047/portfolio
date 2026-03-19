@@ -28,9 +28,15 @@ export interface CvProject {
   link?: string;
 }
 
+/** Single skill with mastery 0–100 for progress display */
+export interface CvSkillItem {
+  name: string;
+  mastery: number;
+}
+
 export interface CvSkill {
   category?: string;
-  items: string[];
+  items: CvSkillItem[];
 }
 
 export interface CvLanguage {
@@ -125,11 +131,41 @@ export const cvData: CvData = {
     },
   ],
   skills: [
-    { items: ['Nuxt.js', 'Vue.js'] },
-    { items: ['Tailwind CSS', 'TypeScript', 'JavaScript'] },
-    { items: ['Git', 'GitHub'] },
-    { items: ['Python', 'PHP (Beginner)'] },
-    { items: ['WebSockets', 'APIs'] },
+    {
+      category: 'Frameworks',
+      items: [
+        { name: 'Vue.js', mastery: 94 },
+        { name: 'Nuxt.js', mastery: 88 },
+        { name: 'React.js', mastery: 80 },
+        { name: 'Three.js', mastery: 78 },
+      ],
+    },
+    {
+      category: 'Languages & styling',
+      items: [
+        { name: 'JavaScript', mastery: 92 },
+        { name: 'TypeScript', mastery: 86 },
+        { name: 'Tailwind CSS', mastery: 95 },
+      ],
+    },
+    {
+      category: 'Tools & delivery',
+      items: [
+        { name: 'Git', mastery: 90 },
+        { name: 'GitHub', mastery: 90 },
+      ],
+    },
+    {
+      category: 'Backend & APIs',
+      items: [
+        { name: 'NestJS', mastery: 74 },
+        { name: 'REST APIs', mastery: 85 },
+        { name: 'WebSockets', mastery: 82 },
+        { name: 'SQL', mastery: 76 },
+        { name: 'Python', mastery: 72 },
+        { name: 'PHP', mastery: 48 },
+      ],
+    },
   ],
   languages: [
     { name: 'Arabic', level: 'Native' },

@@ -1,40 +1,44 @@
 <template>
-  <section class="section">
-    <div class="container">
-      <h2 class="mb-8 text-2xl font-bold text-gray-900 sm:text-3xl">
-        Contact
-      </h2>
+  <section :class="sectionRootClass">
+    <div :class="sectionContentClass">
+      <h2
+        class="reading-head mb-8 text-2xl font-bold sm:text-3xl"
+        v-reading-chars="'Contact'"
+      />
       <div class="space-y-6">
         <div>
           <a
             :href="`tel:${phone}`"
-            class="text-gray-700 hover:text-gray-900 hover:underline"
-          >
-            {{ phone }}
-          </a>
+            class="reading-link underline"
+            v-reading-chars="phone"
+          />
         </div>
         <div>
           <a
             :href="`mailto:${email}`"
-            class="text-gray-700 hover:text-gray-900 hover:underline"
-          >
-            {{ email }}
-          </a>
+            class="reading-link underline"
+            v-reading-chars="email"
+          />
         </div>
         <div v-if="languages?.length">
-          <span class="text-sm font-medium text-gray-500">Languages</span>
+          <span
+            class="reading-subtle text-sm font-medium"
+            v-reading-chars="'Languages'"
+          />
           <ul class="mt-1 space-y-1">
             <li
               v-for="(lang, idx) in languages"
               :key="idx"
-              class="text-gray-700"
-            >
-              {{ lang.name }}: {{ lang.level }}
-            </li>
+              class="reading-body"
+              v-reading-chars="`${lang.name}: ${lang.level}`"
+            />
           </ul>
         </div>
         <div v-if="links?.length">
-          <span class="text-sm font-medium text-gray-500">Links</span>
+          <span
+            class="reading-subtle text-sm font-medium"
+            v-reading-chars="'Links'"
+          />
           <ul class="mt-2 space-y-2">
             <li
               v-for="(link, idx) in links"
@@ -44,10 +48,9 @@
                 :href="link.url"
                 target="_blank"
                 rel="noopener noreferrer"
-                class="text-gray-700 hover:text-gray-900 hover:underline"
-              >
-                {{ link.label }} →
-              </a>
+                class="reading-link underline"
+                v-reading-chars="`${link.label} →`"
+              />
             </li>
           </ul>
         </div>
@@ -57,6 +60,8 @@
 </template>
 
 <script setup lang="ts">
+import { sectionContentClass, sectionRootClass } from '@/constants/sectionLayout';
+
 defineProps<{
   phone: string;
   email: string;

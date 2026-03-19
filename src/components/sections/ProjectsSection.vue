@@ -1,39 +1,40 @@
 <template>
-  <section class="section">
-    <div class="container">
-      <h2 class="mb-8 text-2xl font-bold text-gray-900 sm:text-3xl">
-        Projects
-      </h2>
-      <ul class="space-y-8">
+  <section :class="projectsSectionRootClass">
+    <div :class="sectionContentClass">
+      <h2
+        class="reading-head mb-8 text-2xl font-bold sm:text-3xl"
+        v-reading-chars="'Projects'"
+      />
+      <ul class="w-full min-w-0 max-w-full space-y-8">
         <li
           v-for="(project, idx) in projects"
           :key="idx"
-          class="border-b border-gray-200/60 pb-6 last:border-0 last:pb-0"
+          class="reading-border w-full min-w-0 max-w-full border-b pb-6 break-words last:border-0 last:pb-0"
         >
-          <h3 class="mb-2 text-lg font-semibold text-gray-900">
-            {{ project.name }}
-          </h3>
-          <p class="mb-3 text-gray-600">
-            {{ project.description }}
-          </p>
-          <div class="flex flex-wrap gap-2">
+          <h3
+            class="reading-head mb-2 max-w-full text-lg font-semibold break-words"
+            v-reading-chars="project.name"
+          />
+          <p
+            class="reading-muted mb-3 w-full max-w-full min-w-0 text-pretty break-words [overflow-wrap:anywhere]"
+            v-reading-chars="project.description"
+          />
+          <div class="flex min-w-0 max-w-full flex-wrap gap-2">
             <span
               v-for="(tech, i) in project.tech"
               :key="i"
-              class=" rounded bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-600"
-            >
-              {{ tech }}
-            </span>
+              class="reading-chip max-w-full break-words rounded px-2 py-0.5 text-xs font-medium"
+              v-reading-chars="tech"
+            />
           </div>
           <a
             v-if="project.link"
             :href="project.link"
             target="_blank"
             rel="noopener noreferrer"
-            class="mt-2 inline-block text-sm font-medium text-gray-700 underline hover:text-gray-900"
-          >
-            View project →
-          </a>
+            class="reading-link mt-2 inline-block max-w-full break-all text-sm font-medium underline"
+            v-reading-chars="'View project →'"
+          />
         </li>
       </ul>
     </div>
@@ -42,6 +43,7 @@
 
 <script setup lang="ts">
 import type { CvProject } from '@/data/cv';
+import { projectsSectionRootClass, sectionContentClass } from '@/constants/sectionLayout';
 
 defineProps<{
   projects: CvProject[];

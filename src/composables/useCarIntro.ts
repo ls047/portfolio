@@ -10,8 +10,9 @@ const DRIVE_DURATION = 2.5; // total drive time
 const DRIFT_START = 1.0; // drift begins DURING drive (car at z ≈ -2, still moving up)
 const DRIFT_DURATION = 1.5;
 const LIGHT_FLASH_DURATION = 2.0;
-const LIGHT_FLOOD_DURATION = 1.2; // circular light expands to fill screen after lights turn on
-const TOTAL_INTRO = DRIFT_START + DRIFT_DURATION + LIGHT_FLASH_DURATION; // content + gear reveal after 3 light flashes
+const LIGHT_FLOOD_DURATION = 1.2; // circular light expands to fill screen when 3rd flash hits
+const LIGHT_FLOOD_START = DRIFT_START + DRIFT_DURATION + (2 / 3) * LIGHT_FLASH_DURATION; // flood starts on 3rd flash
+const TOTAL_INTRO = DRIFT_START + DRIFT_DURATION + LIGHT_FLASH_DURATION; // content reveal after 3 flashes
 
 // Skid marks offset from arc center (1.25, 0.75) - applied directly to mesh world positions
 const SKID_OFFSET_X = 1.0;
@@ -23,16 +24,20 @@ export function useCarIntro(containerRef: Ref<HTMLElement | null>) {
   let scene: THREE.Scene;
   let camera: THREE.PerspectiveCamera;
   let renderer: THREE.WebGLRenderer;
-  let car: THREE.Group;
+  let car: THREE.Group | null = null;
   let headlightLeft: THREE.PointLight;
   let headlightRight: THREE.PointLight;
   let rearLightLeft: THREE.PointLight;
   let rearLightRight: THREE.PointLight;
   let headlightLenses: { mesh: THREE.Mesh; mat: THREE.MeshBasicMaterial }[] = [];
   let headlightOverlays: THREE.MeshBasicMaterial[] = []; // scene-level overlays for guaranteed visibility
+  let headlightOverlayMeshes: THREE.Mesh[] = []; // for cleanup
+  let overlayTex: THREE.CanvasTexture | null = null;
+  let overlayGeo: THREE.BufferGeometry | null = null;
   let lightFloodMesh: THREE.Mesh | null = null; // circular light that expands to fill screen
   let skidMarksGroup: THREE.Group;
   let smokeGroup: THREE.Group;
+  let introDisposed = false;
   let frameId: number;
   let timer: InstanceType<typeof Timer>;
   let startElapsed = 0;
@@ -102,17 +107,17 @@ export function useCarIntro(containerRef: Ref<HTMLElement | null>) {
 
     // Soft billowing smoke texture (not particles) - larger gradient for cloud-like look
     const canvas = document.createElement('canvas');
-    canvas.width = 256;
-    canvas.height = 256;
+    canvas.width = 128;
+    canvas.height = 128;
     const ctx = canvas.getContext('2d')!;
-    const gradient = ctx.createRadialGradient(128, 128, 0, 128, 128, 128);
+    const gradient = ctx.createRadialGradient(64, 64, 0, 64, 64, 64);
     gradient.addColorStop(0, 'rgba(220,220,215,0.5)');
     gradient.addColorStop(0.2, 'rgba(190,190,185,0.35)');
     gradient.addColorStop(0.45, 'rgba(140,140,135,0.15)');
     gradient.addColorStop(0.7, 'rgba(100,100,95,0.04)');
     gradient.addColorStop(1, 'rgba(60,60,55,0)');
     ctx.fillStyle = gradient;
-    ctx.fillRect(0, 0, 256, 256);
+    ctx.fillRect(0, 0, 128, 128);
 
     const texture = new THREE.CanvasTexture(canvas);
     const smokeMat = new THREE.MeshBasicMaterial({
@@ -124,10 +129,11 @@ export function useCarIntro(containerRef: Ref<HTMLElement | null>) {
     });
 
     // Fewer, larger smoke planes for billowing smoke (not particle-like)
-    for (let i = 0; i < 8; i++) {
+    // Shared material - all smoke uses same opacity (saves material instances)
+    for (let i = 0; i < 4; i++) {
       const size = 2.2 + Math.random() * 1.8;
       const geo = new THREE.PlaneGeometry(size, size);
-      const mesh = new THREE.Mesh(geo, smokeMat.clone());
+      const mesh = new THREE.Mesh(geo, smokeMat);
       // Positions behind car (negative Z in group) - spread into a cloud
       mesh.position.set(
         (Math.random() - 0.5) * 2,
@@ -148,21 +154,22 @@ export function useCarIntro(containerRef: Ref<HTMLElement | null>) {
     // Car is scaled to 2.5 total; front is 1.25 from center. Local pos = 1.25/scale to reach front
     const offset = 1.25 / scale;
     const headlightWhite = 0xffffff;
+    const headlightWarm = 0xfff5e0; // Slight halogen warmth for realism
 
     // Front lights (model front may be +Z or -Z - we add both)
-    headlightLeft = new THREE.PointLight(headlightWhite, 0, 30, 1);
+    headlightLeft = new THREE.PointLight(headlightWarm, 0, 35, 1.2);
     headlightLeft.position.set(0.35 * scale, 0.4 * scale, offset);
     carGroup.add(headlightLeft);
 
-    headlightRight = new THREE.PointLight(headlightWhite, 0, 20, 1.5);
+    headlightRight = new THREE.PointLight(headlightWarm, 0, 35, 1.2);
     headlightRight.position.set(-0.35 * scale, 0.4 * scale, offset);
     carGroup.add(headlightRight);
 
     // Rear lights (animate all 4 - whichever faces camera will glow)
-    rearLightLeft = new THREE.PointLight(headlightWhite, 0, 25, 1.2);
+    rearLightLeft = new THREE.PointLight(headlightWarm, 0, 30, 1.2);
     rearLightLeft.position.set(0.35 * scale, 0.4 * scale, -offset);
     carGroup.add(rearLightLeft);
-    rearLightRight = new THREE.PointLight(headlightWhite, 0, 25, 1.2);
+    rearLightRight = new THREE.PointLight(headlightWarm, 0, 30, 1.2);
     rearLightRight.position.set(-0.35 * scale, 0.4 * scale, -offset);
     carGroup.add(rearLightRight);
 
@@ -176,9 +183,9 @@ export function useCarIntro(containerRef: Ref<HTMLElement | null>) {
       [-0.35 * scale, 0.4 * scale, -offset - nudge, false],
     ];
     for (const [x, y, z, isFront] of positions) {
-      const geo = new THREE.CircleGeometry(lensRadius, 16);
+      const geo = new THREE.CircleGeometry(lensRadius, 24);
       const mat = new THREE.MeshBasicMaterial({
-        color: headlightWhite,
+        color: headlightWarm,
         transparent: true,
         opacity: 0,
         depthWrite: false,
@@ -206,7 +213,7 @@ export function useCarIntro(containerRef: Ref<HTMLElement | null>) {
     if (headlightRight) headlightRight.intensity = intensity;
     if (rearLightLeft) rearLightLeft.intensity = intensity;
     if (rearLightRight) rearLightRight.intensity = intensity;
-      const lensOpacity = Math.min(1, intensity / 50);
+      const lensOpacity = Math.min(1, intensity / 60);
       headlightLenses.forEach(({ mat }) => { mat.opacity = lensOpacity; });
       headlightOverlays.forEach((mat) => { mat.opacity = lensOpacity; });
     }
@@ -218,7 +225,7 @@ export function useCarIntro(containerRef: Ref<HTMLElement | null>) {
     timer.connect(document);
 
     scene = new THREE.Scene();
-    scene.background = new THREE.Color(0x0a0a0a);
+    scene.background = new THREE.Color(0x2a2a2a);
 
     camera = new THREE.PerspectiveCamera(
       50,
@@ -234,17 +241,17 @@ export function useCarIntro(containerRef: Ref<HTMLElement | null>) {
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     renderer.outputColorSpace = THREE.SRGBColorSpace;
     renderer.toneMapping = THREE.ACESFilmicToneMapping;
-    renderer.toneMappingExposure = 1;
+    renderer.toneMappingExposure = 1.2;
     containerRef.value.appendChild(renderer.domElement);
 
-    scene.add(new THREE.AmbientLight(0xffffff, 0.3));
-    const dirLight = new THREE.DirectionalLight(0xffffff, 0.7);
+    scene.add(new THREE.AmbientLight(0xffffff, 0.7));
+    const dirLight = new THREE.DirectionalLight(0xffffff, 1.1);
     dirLight.position.set(5, 10, 5);
     scene.add(dirLight);
 
     const groundGeo = new THREE.PlaneGeometry(60, 40);
     const groundMat = new THREE.MeshStandardMaterial({
-      color: 0x0d0d0d,
+      color: 0x353535,
       roughness: 0.9,
       metalness: 0,
     });
@@ -258,7 +265,7 @@ export function useCarIntro(containerRef: Ref<HTMLElement | null>) {
     const screenPlane = new THREE.Mesh(
       new THREE.PlaneGeometry(20, 12),
       new THREE.MeshStandardMaterial({
-        color: 0x080808,
+        color: 0x282828,
         roughness: 0.95,
         metalness: 0,
       }),
@@ -274,12 +281,24 @@ export function useCarIntro(containerRef: Ref<HTMLElement | null>) {
     smokeGroup = createSmoke();
     scene.add(smokeGroup);
 
-    // Scene-level headlight overlays - positioned between car and camera for guaranteed visibility
-    const headlightWhite = 0xffffff;
-    const overlayGeo = new THREE.CircleGeometry(0.5, 24);
+    // Scene-level headlight overlays - soft halogen glow, positioned between car and camera
+    const headlightWarm = 0xfff5e0;
+    const overlayCanvas = document.createElement('canvas');
+    overlayCanvas.width = 64;
+    overlayCanvas.height = 64;
+    const overlayCtx = overlayCanvas.getContext('2d')!;
+    const overlayGrad = overlayCtx.createRadialGradient(32, 32, 0, 32, 32, 32);
+    overlayGrad.addColorStop(0, 'rgba(255,245,224,0.95)');
+    overlayGrad.addColorStop(0.4, 'rgba(255,245,224,0.6)');
+    overlayGrad.addColorStop(0.7, 'rgba(255,245,224,0.2)');
+    overlayGrad.addColorStop(1, 'rgba(255,245,224,0)');
+    overlayCtx.fillStyle = overlayGrad;
+    overlayCtx.fillRect(0, 0, 64, 64);
+    overlayTex = new THREE.CanvasTexture(overlayCanvas);
+    overlayGeo = new THREE.CircleGeometry(0.55, 32);
     for (const x of [2.15, 2.85]) {
       const mat = new THREE.MeshBasicMaterial({
-        color: headlightWhite,
+        map: overlayTex,
         transparent: true,
         opacity: 0,
         depthWrite: false,
@@ -292,14 +311,30 @@ export function useCarIntro(containerRef: Ref<HTMLElement | null>) {
       mesh.renderOrder = 200;
       scene.add(mesh);
       headlightOverlays.push(mat);
+      headlightOverlayMeshes.push(mesh);
     }
 
-    // Circular light flood - expands from headlights to fill screen when lights turn on
+    // Circular light flood - bright center, darker edges (headlight look)
+    const floodCanvas = document.createElement('canvas');
+    floodCanvas.width = 128;
+    floodCanvas.height = 128;
+    const floodCtx = floodCanvas.getContext('2d')!;
+    const floodGrad = floodCtx.createRadialGradient(64, 64, 0, 64, 64, 64);
+    floodGrad.addColorStop(0, 'rgba(255,250,240,0.95)');   // bright center
+    floodGrad.addColorStop(0.08, 'rgba(255,245,224,0.75)');
+    floodGrad.addColorStop(0.16, 'rgba(255,240,210,0.45)');
+    floodGrad.addColorStop(0.26, 'rgba(180,160,140,0.15)');
+    floodGrad.addColorStop(0.38, 'rgba(30,25,20,0.9)');   // dark
+    floodGrad.addColorStop(0.5, 'rgba(8,8,8,1)');          // near black
+    floodGrad.addColorStop(1, 'rgb(0,0,0)');               // solid black corners
+    floodCtx.fillStyle = floodGrad;
+    floodCtx.fillRect(0, 0, 128, 128);
+    const floodTex = new THREE.CanvasTexture(floodCanvas);
     const floodGeo = new THREE.CircleGeometry(1, 32);
     const floodMat = new THREE.MeshBasicMaterial({
-      color: headlightWhite,
+      map: floodTex,
       transparent: true,
-      opacity: 0.85,
+      opacity: 0.9,
       depthWrite: false,
       depthTest: false,
       side: THREE.DoubleSide,
@@ -350,7 +385,7 @@ export function useCarIntro(containerRef: Ref<HTMLElement | null>) {
       if (headlightRight) headlightRight.intensity = intensity;
       if (rearLightLeft) rearLightLeft.intensity = intensity;
       if (rearLightRight) rearLightRight.intensity = intensity;
-      const lensOpacity = Math.min(1, intensity / 50);
+      const lensOpacity = Math.min(1, intensity / 60);
       headlightLenses.forEach(({ mat }) => { mat.opacity = lensOpacity; });
       headlightOverlays.forEach((mat) => { mat.opacity = lensOpacity; });
     }
@@ -429,24 +464,64 @@ export function useCarIntro(containerRef: Ref<HTMLElement | null>) {
 
           const flashPhase = t - DRIFT_START - DRIFT_DURATION;
           const cycleDuration = LIGHT_FLASH_DURATION / 3;
+          const cycleIndex = Math.floor(flashPhase / cycleDuration);
           const cycleProgress = (flashPhase % cycleDuration) / cycleDuration;
-          // 3 attempts: each fades in then fades out (trying to start but failing)
-          const fade = cycleProgress < 0.5
-            ? cycleProgress * 2
-            : (1 - cycleProgress) * 2;
-          const attemptPeak = 25; // peaks at 25 during failed attempts - visible fade (opacity 0.5)
-          const fullIntensity = 50; // boosted for visibility
-          const intensity = Math.floor(flashPhase / cycleDuration) < 3 ? fade * attemptPeak : fullIntensity;
+          // 3 attempts: 1st & 2nd fade in/out; 3rd = success, full intensity + flood starts
+          const fade = cycleProgress < 0.35
+            ? cycleProgress / 0.35
+            : cycleProgress < 0.5
+              ? 1
+              : (1 - (cycleProgress - 0.5) / 0.5);
+          const attemptPeak = 35;
+          const fullIntensity = 60;
+          const intensity = cycleIndex < 2 ? fade * attemptPeak : fullIntensity;
           setAllLights(intensity);
+
+          // Flood starts on 3rd flash (cycleIndex >= 2)
+          if (t >= LIGHT_FLOOD_START && lightFloodMesh) {
+            const floodPhase = t - LIGHT_FLOOD_START;
+            if (floodPhase < LIGHT_FLOOD_DURATION) {
+              lightFloodMesh.visible = true;
+              const p = floodPhase / LIGHT_FLOOD_DURATION;
+              const eased = 1 - Math.pow(1 - p, 0.7);
+              lightFloodMesh.scale.setScalar(eased * 25);
+              const fadeOut = 1 - eased;
+              const skidMarksFadeOut = Math.max(0, 1 - eased * 1.4); // disappear sooner
+              headlightOverlays.forEach((mat) => { mat.opacity = fadeOut; });
+              (skidMarksGroup.children as THREE.Mesh[]).forEach((m) => {
+                (m.material as THREE.MeshBasicMaterial).opacity = 0.85 * skidMarksFadeOut;
+              });
+              car.traverse((child) => {
+                if (child instanceof THREE.Mesh && child.material) {
+                  const mats = Array.isArray(child.material) ? child.material : [child.material];
+                  mats.forEach((mat) => {
+                    if ('opacity' in mat) (mat as THREE.MeshStandardMaterial).opacity = fadeOut;
+                  });
+                }
+              });
+            } else {
+              lightFloodMesh.visible = true;
+              lightFloodMesh.scale.setScalar(25);
+              headlightOverlays.forEach((mat) => { mat.opacity = 0; });
+              (skidMarksGroup.children as THREE.Mesh[]).forEach((m) => {
+                (m.material as THREE.MeshBasicMaterial).opacity = 0;
+              });
+              car.traverse((child) => {
+                if (child instanceof THREE.Mesh && child.material && 'opacity' in child.material) {
+                  (child.material as THREE.MeshStandardMaterial).opacity = 0;
+                }
+              });
+            }
+          }
         } else {
           car.position.set(2.5, 0, 3.5);
           car.rotation.y = Math.PI;
-          setAllLights(50);
+          setAllLights(60);
           skidMarksGroup.visible = true;
           smokeGroup.visible = false;
 
-          // Circular light flood - expands from center to fill whole page
-          const floodPhase = t - TOTAL_INTRO;
+          // Flood continues (started on 3rd flash at LIGHT_FLOOD_START)
+          const floodPhase = t - LIGHT_FLOOD_START;
           if (lightFloodMesh && floodPhase < LIGHT_FLOOD_DURATION) {
             lightFloodMesh.visible = true;
             const p = floodPhase / LIGHT_FLOOD_DURATION;
@@ -455,9 +530,10 @@ export function useCarIntro(containerRef: Ref<HTMLElement | null>) {
             lightFloodMesh.scale.setScalar(eased * maxRadius);
             // Fade out headlights, skid marks and car as the big one scales up
             const fadeOut = 1 - eased;
+            const skidMarksFadeOut = Math.max(0, 1 - eased * 1.4); // disappear sooner
             headlightOverlays.forEach((mat) => { mat.opacity = fadeOut; });
             (skidMarksGroup.children as THREE.Mesh[]).forEach((m) => {
-              (m.material as THREE.MeshBasicMaterial).opacity = 0.85 * fadeOut;
+              (m.material as THREE.MeshBasicMaterial).opacity = 0.85 * skidMarksFadeOut;
             });
             car.traverse((child) => {
               if (child instanceof THREE.Mesh && child.material) {
@@ -474,11 +550,12 @@ export function useCarIntro(containerRef: Ref<HTMLElement | null>) {
             (skidMarksGroup.children as THREE.Mesh[]).forEach((m) => {
               (m.material as THREE.MeshBasicMaterial).opacity = 0;
             });
-            car.traverse((child) => {
+            if (car) car.traverse((child) => {
               if (child instanceof THREE.Mesh && child.material && 'opacity' in child.material) {
                 (child.material as THREE.MeshStandardMaterial).opacity = 0;
               }
             });
+            disposeIntroObjects();
           }
         }
 
@@ -493,10 +570,80 @@ export function useCarIntro(containerRef: Ref<HTMLElement | null>) {
     window.addEventListener('resize', handleResize);
   });
 
+  function disposeIntroObjects() {
+    if (introDisposed) return;
+    introDisposed = true;
+
+    // Car (includes headlights, lenses)
+    if (car) {
+      scene.remove(car);
+      car.traverse((obj) => {
+        const mesh = obj as THREE.Mesh;
+        if (mesh.geometry) mesh.geometry.dispose();
+        const mat = mesh.material;
+        if (mat) {
+          const mats = Array.isArray(mat) ? mat : [mat];
+          mats.forEach((m) => {
+            if (m.map) m.map.dispose();
+            m.dispose();
+          });
+        }
+      });
+      car = null;
+    }
+
+    // Skid marks
+    if (skidMarksGroup) {
+      scene.remove(skidMarksGroup);
+      (skidMarksGroup.children as THREE.Mesh[]).forEach((m) => {
+        if (m.geometry) m.geometry.dispose();
+        if (m.material) (m.material as THREE.Material).dispose();
+      });
+    }
+
+    // Smoke
+    if (smokeGroup) {
+      scene.remove(smokeGroup);
+      (smokeGroup.children as THREE.Mesh[]).forEach((m) => {
+        if (m.geometry) m.geometry.dispose();
+        if (m.material) (m.material as THREE.Material).dispose();
+      });
+    }
+
+    // Headlight overlays
+    headlightOverlayMeshes.forEach((mesh) => {
+      scene.remove(mesh);
+      if (mesh.material) (mesh.material as THREE.Material).dispose();
+    });
+    headlightOverlayMeshes = [];
+    headlightOverlays = [];
+    if (overlayGeo) overlayGeo.dispose();
+    if (overlayTex) overlayTex.dispose();
+  }
+
+  function disposeScene() {
+    if (!scene) return;
+    disposeIntroObjects();
+    scene.traverse((obj) => {
+      const mesh = obj as THREE.Mesh;
+      if (mesh.geometry) mesh.geometry.dispose();
+      const mat = mesh.material;
+      if (mat) {
+        const mats = Array.isArray(mat) ? mat : [mat];
+        mats.forEach((m) => {
+          if (m.map) m.map.dispose();
+          m.dispose();
+        });
+      }
+    });
+    scene.clear();
+  }
+
   onBeforeUnmount(() => {
     window.removeEventListener('resize', handleResize);
     frameId && cancelAnimationFrame(frameId);
     timer?.dispose?.();
+    disposeScene();
     renderer?.dispose();
     renderer?.domElement?.remove();
   });

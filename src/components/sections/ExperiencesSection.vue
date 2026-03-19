@@ -1,48 +1,55 @@
 <template>
-  <section class="section">
-    <div class="container">
-      <h2 class="mb-8 text-2xl font-bold text-gray-900 sm:text-3xl">
-        Experiences
-      </h2>
+  <section :class="sectionRootClass">
+    <div :class="sectionContentClass">
+      <h2
+        class="reading-head mb-8 text-2xl font-bold sm:text-3xl"
+        v-reading-chars="'Experiences'"
+      />
       <ul class="space-y-10">
         <li
           v-for="(exp, idx) in experiences"
           :key="idx"
-          class="border-b border-gray-200/60 pb-8 last:border-0 last:pb-0"
+          class="reading-border border-b pb-8 last:border-0 last:pb-0"
         >
           <div class="mb-1 flex flex-wrap items-baseline justify-between gap-2">
-            <h3 class="text-lg font-semibold text-gray-900">
-              {{ exp.company }}
-            </h3>
-            <span class="text-sm text-gray-500">
-              {{ exp.period }}
-            </span>
+            <h3
+              class="reading-head text-lg font-semibold"
+              v-reading-chars="exp.company"
+            />
+            <span
+              class="reading-subtle text-sm"
+              v-reading-chars="exp.period"
+            />
           </div>
-          <p class="mb-2 font-medium text-gray-700">
-            {{ exp.role }}
-          </p>
-          <p class="text-gray-600">
-            {{ exp.description }}
-          </p>
+          <p
+            class="reading-body mb-2 font-medium"
+            v-reading-chars="exp.role"
+          />
+          <p
+            class="reading-muted"
+            v-reading-chars="exp.description"
+          />
         </li>
-        <li class="border-b border-gray-200/60 pb-8 last:border-0">
+        <li class="reading-border border-b pb-8 last:border-0">
           <div class="mb-1 flex flex-wrap items-baseline justify-between gap-2">
-            <h3 class="text-lg font-semibold text-gray-900">
-              {{ education.school }}
-            </h3>
-            <span class="text-sm text-gray-500">
-              {{ education.period }}
-            </span>
+            <h3
+              class="reading-head text-lg font-semibold"
+              v-reading-chars="education.school"
+            />
+            <span
+              class="reading-subtle text-sm"
+              v-reading-chars="education.period"
+            />
           </div>
-          <p class="mb-2 font-medium text-gray-700">
-            {{ education.degree }}
-          </p>
+          <p
+            class="reading-body mb-2 font-medium"
+            v-reading-chars="education.degree"
+          />
           <p
             v-if="education.description"
-            class="text-gray-600"
-          >
-            {{ education.description }}
-          </p>
+            class="reading-muted"
+            v-reading-chars="education.description"
+          />
         </li>
       </ul>
     </div>
@@ -51,6 +58,7 @@
 
 <script setup lang="ts">
 import type { CvExperience, CvEducation } from '@/data/cv';
+import { sectionContentClass, sectionRootClass } from '@/constants/sectionLayout';
 
 defineProps<{
   experiences: CvExperience[];

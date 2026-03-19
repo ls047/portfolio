@@ -4,12 +4,15 @@ import App from './App.vue';
 import router from './router';
 import './style.css';
 import { initializeConfig } from './config';
+import { readingChars } from './directives/readingChars';
 
 // Initialize app configuration (theme, SEO, fonts, etc.)
 initializeConfig();
 
 const pinia = createPinia();
 const app = createApp(App);
+
+app.directive('reading-chars', readingChars);
 
 app.use(pinia);
 app.use(router);
