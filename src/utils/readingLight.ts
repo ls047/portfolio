@@ -5,8 +5,8 @@
 export const TIRE_STRIP_VW = 22;
 export const TIRE_STRIP_MAX_PX = 320;
 
-/** Bright core vs vignette; keep in sync with `useReadingContrast` / section themes */
-export const READING_LIGHT_THRESHOLD = 0.48;
+/** Tuned with `.reading-chars-visual` + page radial (smaller spotlight = higher threshold). */
+export const READING_LIGHT_THRESHOLD = 0.4;
 
 export function getLightCenterPx(viewportWidth: number, viewportHeight: number): {
   x: number;
@@ -18,8 +18,9 @@ export function getLightCenterPx(viewportWidth: number, viewportHeight: number):
   return { x: stripHalf, y: viewportHeight * yFrac };
 }
 
-export const READING_INK_ON_LIGHT = '#0c0a09';
-export const READING_INK_ON_DARK = '#fafaf9';
+/** Strict binary ink for reading / contrast helpers */
+export const READING_INK_ON_LIGHT = '#000000';
+export const READING_INK_ON_DARK = '#ffffff';
 
 /**
  * ~1 = center of headlight (bright), ~0 = vignette (dark).
@@ -38,7 +39,8 @@ export function sampleLightStrength(px: number, py: number): number {
     1
   );
   const r = Math.min(1, dist / maxD);
-  return Math.max(0, Math.min(1, 1 - Math.pow(r / 0.45, 1.3)));
+  /* Smaller spotlight vs 0.62 — falloff starts closer to center */
+  return Math.max(0, Math.min(1, 1 - Math.pow(r / 0.52, 1.15)));
 }
 
 /** True → dark text on bright glow; false → light text on dark vignette */

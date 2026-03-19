@@ -45,7 +45,7 @@
                 :aria-label="`Mastery for ${item.name}: ${clampMastery(item.mastery)} percent`"
               >
                 <div
-                  class="h-full min-w-1 rounded-full bg-[#fff5e0] shadow-[0_0_14px_rgba(255,245,224,0.55)] transition-[width] duration-[650ms] ease-[cubic-bezier(0.22,1,0.36,1)]"
+                  class="h-full min-w-1 rounded-full bg-[#ffffff] shadow-[0_0_14px_rgba(255,255,255,0.45)] transition-[width] duration-[650ms] ease-[cubic-bezier(0.22,1,0.36,1)]"
                   :style="{ width: `${clampMastery(item.mastery)}%` }"
                 />
               </div>

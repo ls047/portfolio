@@ -37,8 +37,15 @@ export function useCarIntro(containerRef: Ref<HTMLElement | null>) {
   let lightFloodMesh: THREE.Mesh | null = null; // circular light that expands to fill screen
   let skidMarksGroup: THREE.Group;
   let smokeGroup: THREE.Group;
+  let groundPlane: THREE.Mesh | null = null;
+  let screenPlane: THREE.Mesh | null = null;
+  let ambientLight: THREE.AmbientLight | null = null;
+  let dirLight: THREE.DirectionalLight | null = null;
   let introDisposed = false;
-  let frameId: number;
+  let introWebglReady = false;
+  let introGpuTornDown = false;
+  let webglRunning = false;
+  let frameId = 0;
   let timer: InstanceType<typeof Timer>;
   let startElapsed = 0;
 
@@ -202,21 +209,11 @@ export function useCarIntro(containerRef: Ref<HTMLElement | null>) {
   }
 
   function handleResize() {
-    if (!containerRef.value) return;
+    if (!webglRunning || !containerRef.value || !renderer || !camera) return;
     camera.aspect = containerRef.value.clientWidth / containerRef.value.clientHeight;
     camera.updateProjectionMatrix();
     renderer.setSize(containerRef.value.clientWidth, containerRef.value.clientHeight);
   }
-
-  function setAllLights(intensity: number) {
-    if (headlightLeft) headlightLeft.intensity = intensity;
-    if (headlightRight) headlightRight.intensity = intensity;
-    if (rearLightLeft) rearLightLeft.intensity = intensity;
-    if (rearLightRight) rearLightRight.intensity = intensity;
-      const lensOpacity = Math.min(1, intensity / 60);
-      headlightLenses.forEach(({ mat }) => { mat.opacity = lensOpacity; });
-      headlightOverlays.forEach((mat) => { mat.opacity = lensOpacity; });
-    }
 
   onMounted(() => {
     if (!containerRef.value) return;
@@ -225,6 +222,7 @@ export function useCarIntro(containerRef: Ref<HTMLElement | null>) {
     timer.connect(document);
 
     scene = new THREE.Scene();
+    introWebglReady = true;
     scene.background = new THREE.Color(0x2a2a2a);
 
     camera = new THREE.PerspectiveCamera(
@@ -236,16 +234,23 @@ export function useCarIntro(containerRef: Ref<HTMLElement | null>) {
     camera.position.set(0, 1.5, -10);
     camera.lookAt(0, 0, 2);
 
-    renderer = new THREE.WebGLRenderer({ antialias: true });
+    renderer = new THREE.WebGLRenderer({
+      antialias: true,
+      powerPreference: 'low-power',
+      stencil: false,
+      depth: true,
+    });
     renderer.setSize(containerRef.value.clientWidth, containerRef.value.clientHeight);
-    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.75));
     renderer.outputColorSpace = THREE.SRGBColorSpace;
     renderer.toneMapping = THREE.ACESFilmicToneMapping;
     renderer.toneMappingExposure = 1.2;
     containerRef.value.appendChild(renderer.domElement);
 
-    scene.add(new THREE.AmbientLight(0xffffff, 0.7));
-    const dirLight = new THREE.DirectionalLight(0xffffff, 1.1);
+    ambientLight = new THREE.AmbientLight(0xffffff, 0.7);
+    scene.add(ambientLight);
+
+    dirLight = new THREE.DirectionalLight(0xffffff, 1.1);
     dirLight.position.set(5, 10, 5);
     scene.add(dirLight);
 
@@ -255,14 +260,14 @@ export function useCarIntro(containerRef: Ref<HTMLElement | null>) {
       roughness: 0.9,
       metalness: 0,
     });
-    const groundPlane = new THREE.Mesh(groundGeo, groundMat);
+    groundPlane = new THREE.Mesh(groundGeo, groundMat);
     groundPlane.rotation.x = -Math.PI / 2;
     groundPlane.position.y = -1;
     groundPlane.position.z = 0;
     scene.add(groundPlane);
 
     // Vertical plane in front of camera for headlights to hit when car faces us
-    const screenPlane = new THREE.Mesh(
+    screenPlane = new THREE.Mesh(
       new THREE.PlaneGeometry(20, 12),
       new THREE.MeshStandardMaterial({
         color: 0x282828,
@@ -377,7 +382,10 @@ export function useCarIntro(containerRef: Ref<HTMLElement | null>) {
         startElapsed = timer.getElapsed();
       },
       undefined,
-      (err) => console.error('Error loading car:', err),
+      (err) => {
+        console.error('Error loading car:', err);
+        shutdownIntroWebGL();
+      },
     );
 
     function setAllLights(intensity: number) {
@@ -391,7 +399,6 @@ export function useCarIntro(containerRef: Ref<HTMLElement | null>) {
     }
 
     function animate(timestamp?: number) {
-      frameId = requestAnimationFrame(animate);
       timer.update(timestamp);
       const t = timer.getElapsed() - startElapsed;
 
@@ -543,19 +550,23 @@ export function useCarIntro(containerRef: Ref<HTMLElement | null>) {
                 });
               }
             });
-          } else if (lightFloodMesh && floodPhase >= LIGHT_FLOOD_DURATION) {
-            lightFloodMesh.visible = true;
-            lightFloodMesh.scale.setScalar(25);
-            headlightOverlays.forEach((mat) => { mat.opacity = 0; });
-            (skidMarksGroup.children as THREE.Mesh[]).forEach((m) => {
-              (m.material as THREE.MeshBasicMaterial).opacity = 0;
-            });
-            if (car) car.traverse((child) => {
-              if (child instanceof THREE.Mesh && child.material && 'opacity' in child.material) {
-                (child.material as THREE.MeshStandardMaterial).opacity = 0;
-              }
-            });
+          } else if (!lightFloodMesh || floodPhase >= LIGHT_FLOOD_DURATION) {
+            // Flood finished (or no flood mesh) — tear down entire intro WebGL so road/car/GPU don't linger
+            if (lightFloodMesh) {
+              lightFloodMesh.visible = true;
+              lightFloodMesh.scale.setScalar(25);
+              headlightOverlays.forEach((mat) => { mat.opacity = 0; });
+              (skidMarksGroup.children as THREE.Mesh[]).forEach((m) => {
+                (m.material as THREE.MeshBasicMaterial).opacity = 0;
+              });
+              if (car) car.traverse((child) => {
+                if (child instanceof THREE.Mesh && child.material && 'opacity' in child.material) {
+                  (child.material as THREE.MeshStandardMaterial).opacity = 0;
+                }
+              });
+            }
             disposeIntroObjects();
+            shutdownIntroWebGL();
           }
         }
 
@@ -563,12 +574,71 @@ export function useCarIntro(containerRef: Ref<HTMLElement | null>) {
         contentOpacity.value = isRevealed ? 1 : 0;
       }
 
-      renderer.render(scene, camera);
+      if (webglRunning && renderer && scene && camera) {
+        renderer.render(scene, camera);
+      }
+      if (webglRunning) {
+        frameId = requestAnimationFrame(animate);
+      }
     }
+
+    webglRunning = true;
     animate();
 
     window.addEventListener('resize', handleResize);
   });
+
+  /** After intro: stop rAF, dispose car-era + environment meshes, tear down WebGL (no idle GPU). */
+  function shutdownIntroWebGL() {
+    webglRunning = false;
+    cancelAnimationFrame(frameId);
+    window.removeEventListener('resize', handleResize);
+    if (!introWebglReady || introGpuTornDown) return;
+    introGpuTornDown = true;
+
+    disposeIntroObjects();
+
+    if (lightFloodMesh) {
+      scene.remove(lightFloodMesh);
+      lightFloodMesh.geometry.dispose();
+      const fm = lightFloodMesh.material as THREE.MeshBasicMaterial;
+      if (fm.map) fm.map.dispose();
+      fm.dispose();
+      lightFloodMesh = null;
+    }
+    if (groundPlane) {
+      scene.remove(groundPlane);
+      groundPlane.geometry.dispose();
+      (groundPlane.material as THREE.Material).dispose();
+      groundPlane = null;
+    }
+    if (screenPlane) {
+      scene.remove(screenPlane);
+      screenPlane.geometry.dispose();
+      (screenPlane.material as THREE.Material).dispose();
+      screenPlane = null;
+    }
+    if (ambientLight) {
+      scene.remove(ambientLight);
+      ambientLight = null;
+    }
+    if (dirLight) {
+      scene.remove(dirLight);
+      dirLight = null;
+    }
+
+    scene.clear();
+    timer?.dispose?.();
+
+    if (renderer && containerRef.value?.contains(renderer.domElement)) {
+      containerRef.value.removeChild(renderer.domElement);
+    }
+    renderer?.dispose();
+    renderer = null as unknown as THREE.WebGLRenderer;
+    // Drop refs so car / road / scene graphs can't linger in JS memory
+    scene = undefined as unknown as THREE.Scene;
+    camera = undefined as unknown as THREE.PerspectiveCamera;
+  }
 
   function disposeIntroObjects() {
     if (introDisposed) return;
@@ -592,22 +662,33 @@ export function useCarIntro(containerRef: Ref<HTMLElement | null>) {
       car = null;
     }
 
-    // Skid marks
+    // Skid marks (each mesh: cloned material, **shared** streak texture — dispose map once)
     if (skidMarksGroup) {
       scene.remove(skidMarksGroup);
+      let streakMap: THREE.Texture | null = null;
       (skidMarksGroup.children as THREE.Mesh[]).forEach((m) => {
         if (m.geometry) m.geometry.dispose();
-        if (m.material) (m.material as THREE.Material).dispose();
+        const mat = m.material as THREE.MeshBasicMaterial | undefined;
+        if (mat) {
+          if (mat.map) streakMap = mat.map;
+          mat.dispose();
+        }
       });
+      streakMap?.dispose();
     }
 
-    // Smoke
+    // Smoke (all meshes share one material + texture — dispose once)
     if (smokeGroup) {
       scene.remove(smokeGroup);
-      (smokeGroup.children as THREE.Mesh[]).forEach((m) => {
+      const children = smokeGroup.children as THREE.Mesh[];
+      const sharedMat = children[0]?.material as THREE.MeshBasicMaterial | undefined;
+      children.forEach((m) => {
         if (m.geometry) m.geometry.dispose();
-        if (m.material) (m.material as THREE.Material).dispose();
       });
+      if (sharedMat) {
+        if (sharedMat.map) sharedMat.map.dispose();
+        sharedMat.dispose();
+      }
     }
 
     // Headlight overlays
@@ -621,31 +702,8 @@ export function useCarIntro(containerRef: Ref<HTMLElement | null>) {
     if (overlayTex) overlayTex.dispose();
   }
 
-  function disposeScene() {
-    if (!scene) return;
-    disposeIntroObjects();
-    scene.traverse((obj) => {
-      const mesh = obj as THREE.Mesh;
-      if (mesh.geometry) mesh.geometry.dispose();
-      const mat = mesh.material;
-      if (mat) {
-        const mats = Array.isArray(mat) ? mat : [mat];
-        mats.forEach((m) => {
-          if (m.map) m.map.dispose();
-          m.dispose();
-        });
-      }
-    });
-    scene.clear();
-  }
-
   onBeforeUnmount(() => {
-    window.removeEventListener('resize', handleResize);
-    frameId && cancelAnimationFrame(frameId);
-    timer?.dispose?.();
-    disposeScene();
-    renderer?.dispose();
-    renderer?.domElement?.remove();
+    shutdownIntroWebGL();
   });
 
   return { contentOpacity };

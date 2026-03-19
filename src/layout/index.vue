@@ -66,28 +66,28 @@ watch(contentOpacity, (opacity) => {
 .content-overlay {
   min-height: 100vh;
   overflow: hidden;
-  /* Defaults until useReadingContrast sets per-section vars */
-  --section-heading: #0c0a09;
-  --section-body: #292524;
-  --section-muted: #44403c;
-  --section-subtle: #57534e;
-  --section-link: #1c1917;
-  --section-link-hover: #0c0a09;
-  --section-divider: rgba(12, 10, 9, 0.14);
-  --section-chip-bg: rgba(28, 25, 23, 0.09);
-  --section-chip-text: #4b5563;
+  /* Defaults until useReadingContrast sets per-section vars (black / white only) */
+  --section-heading: #000000;
+  --section-body: #000000;
+  --section-muted: #000000;
+  --section-subtle: #000000;
+  --section-link: #000000;
+  --section-link-hover: #000000;
+  --section-divider: rgba(0, 0, 0, 0.14);
+  --section-chip-bg: rgba(0, 0, 0, 0.08);
+  --section-chip-text: #000000;
   /* Left mirror of .tire-decoration (desktop: mid-height; mobile: ~tire top band) */
   --reading-light-x: min(11vw, 160px);
   --reading-light-y: 50%;
+  /* White spotlight → black vignette; neutral mid grays only */
   background: radial-gradient(
     circle at var(--reading-light-x) var(--reading-light-y),
-    rgba(255, 250, 240, 0.95) 0%,
-    rgba(255, 245, 224, 0.75) 8%,
-    rgba(255, 240, 210, 0.45) 16%,
-    rgba(180, 160, 140, 0.15) 26%,
-    rgba(30, 25, 20, 0.9) 38%,
-    rgba(8, 8, 8, 1) 50%,
-    rgb(0, 0, 0) 100%
+    #ffffff 0%,
+    #ffffff 10%,
+    #c8c8c8 19%,
+    #2a2a2a 33%,
+    #000000 44%,
+    #000000 100%
   );
   background-attachment: fixed;
   background-position: center;
@@ -138,5 +138,19 @@ watch(contentOpacity, (opacity) => {
 .content-overlay :deep(.reading-chip) {
   background-color: var(--section-chip-bg) !important;
   color: var(--section-chip-text) !important;
+}
+
+.content-overlay :deep(.reading-chars-visual) {
+  white-space: pre-line;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+/* Per-word ink from `syncReadingVisualInks` */
+.content-overlay :deep(.reading-word) {
+  color: var(--reading-ink-sync, #000000) !important;
+  -webkit-text-fill-color: var(--reading-ink-sync, #000000) !important;
+  caret-color: var(--reading-ink-sync, #000000);
+  transition: none !important;
 }
 </style>
