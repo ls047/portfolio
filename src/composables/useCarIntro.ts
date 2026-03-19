@@ -1,0 +1,505 @@
+import { ref, onMounted, onBeforeUnmount, type Ref } from 'vue';
+import * as THREE from 'three';
+import { Timer } from 'three';
+import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
+
+import carModelUrl from '@/assets/1987_buick_grand_national_regal_gnx.glb?url';
+const CAR_MODEL_URL = carModelUrl;
+const LIGHT_ATTEMPT_PEAK = 30; // intensity during failed attempts (more visible fade)
+const DRIVE_DURATION = 2.5; // total drive time
+const DRIFT_START = 1.0; // drift begins DURING drive (car at z ≈ -2, still moving up)
+const DRIFT_DURATION = 1.5;
+const LIGHT_FLASH_DURATION = 2.0;
+const LIGHT_FLOOD_DURATION = 1.2; // circular light expands to fill screen after lights turn on
+const TOTAL_INTRO = DRIFT_START + DRIFT_DURATION + LIGHT_FLASH_DURATION; // content + gear reveal after 3 light flashes
+
+// Skid marks offset from arc center (1.25, 0.75) - applied directly to mesh world positions
+const SKID_OFFSET_X = 1.0;
+const SKID_OFFSET_Z = 8.0;
+
+export function useCarIntro(containerRef: Ref<HTMLElement | null>) {
+  const contentOpacity = ref(0);
+
+  let scene: THREE.Scene;
+  let camera: THREE.PerspectiveCamera;
+  let renderer: THREE.WebGLRenderer;
+  let car: THREE.Group;
+  let headlightLeft: THREE.PointLight;
+  let headlightRight: THREE.PointLight;
+  let rearLightLeft: THREE.PointLight;
+  let rearLightRight: THREE.PointLight;
+  let headlightLenses: { mesh: THREE.Mesh; mat: THREE.MeshBasicMaterial }[] = [];
+  let headlightOverlays: THREE.MeshBasicMaterial[] = []; // scene-level overlays for guaranteed visibility
+  let lightFloodMesh: THREE.Mesh | null = null; // circular light that expands to fill screen
+  let skidMarksGroup: THREE.Group;
+  let smokeGroup: THREE.Group;
+  let frameId: number;
+  let timer: InstanceType<typeof Timer>;
+  let startElapsed = 0;
+
+  function createSkidMarks() {
+    const group = new THREE.Group();
+    group.position.y = -0.999; // just above ground so marks are visible (ground y=-1)
+    group.rotation.x = -Math.PI / 2;
+
+    // Soft-edged rubber streak texture (marks appear with smoke during drift)
+    const canvas = document.createElement('canvas');
+    canvas.width = 32;
+    canvas.height = 8;
+    const ctx = canvas.getContext('2d')!;
+    const grad = ctx.createLinearGradient(0, 0, 32, 0);
+    grad.addColorStop(0, 'rgba(20,15,12,0)');
+    grad.addColorStop(0.15, 'rgba(20,15,12,0.5)');
+    grad.addColorStop(0.5, 'rgba(15,10,8,0.95)');
+    grad.addColorStop(0.85, 'rgba(20,15,12,0.5)');
+    grad.addColorStop(1, 'rgba(20,15,12,0)');
+    ctx.fillStyle = grad;
+    ctx.fillRect(0, 0, 32, 8);
+    const streakTex = new THREE.CanvasTexture(canvas);
+
+    const darkMat = new THREE.MeshBasicMaterial({
+      map: streakTex,
+      transparent: true,
+      opacity: 0.98,
+      depthWrite: false,
+      depthTest: true,
+    });
+
+    // Drift arc: car path from (0,-2) to (2.5,3.5) - drift while going up, center (1.25, 0.75)
+    const R = 1.25;
+    const trackWidth = 0.11;
+    const trackLength = 0.18;
+    const tireSpacing = 0.48;
+    const numSegments = 52;
+
+    for (let side = -1; side <= 1; side += 2) {
+      const offsetX = side * tireSpacing * 0.5;
+      for (let i = 0; i < numSegments; i++) {
+        const segProgress = numSegments > 1 ? i / (numSegments - 1) : 1;
+        const angle = segProgress * Math.PI;
+        const jitter = 0.04;
+        // Car path: drift while going up - from (0,-2) to (2.5,3.5), offset applied directly to positions
+        const worldX = 1.25 - R * Math.cos(angle) + offsetX + (Math.random() - 0.5) * jitter + SKID_OFFSET_X;
+        const worldZ = -2 + 5.5 * segProgress + (Math.random() - 0.5) * jitter + SKID_OFFSET_Z;
+        const x = worldX;
+        const z = worldZ;
+        const segLen = trackLength * (0.7 + Math.random() * 0.6);
+        const geo = new THREE.PlaneGeometry(segLen, trackWidth);
+        const mesh = new THREE.Mesh(geo, darkMat.clone());
+        mesh.position.set(x, -z, 0);
+        mesh.rotation.z = angle + Math.PI + (Math.random() - 0.5) * 0.15; // 180° to match car direction
+        mesh.userData.segmentProgress = segProgress;
+        mesh.userData.baseOpacity = 0.9;
+        group.add(mesh);
+      }
+    }
+    group.visible = false;
+    return group;
+  }
+
+  function createSmoke() {
+    const group = new THREE.Group();
+
+    // Soft billowing smoke texture (not particles) - larger gradient for cloud-like look
+    const canvas = document.createElement('canvas');
+    canvas.width = 256;
+    canvas.height = 256;
+    const ctx = canvas.getContext('2d')!;
+    const gradient = ctx.createRadialGradient(128, 128, 0, 128, 128, 128);
+    gradient.addColorStop(0, 'rgba(220,220,215,0.5)');
+    gradient.addColorStop(0.2, 'rgba(190,190,185,0.35)');
+    gradient.addColorStop(0.45, 'rgba(140,140,135,0.15)');
+    gradient.addColorStop(0.7, 'rgba(100,100,95,0.04)');
+    gradient.addColorStop(1, 'rgba(60,60,55,0)');
+    ctx.fillStyle = gradient;
+    ctx.fillRect(0, 0, 256, 256);
+
+    const texture = new THREE.CanvasTexture(canvas);
+    const smokeMat = new THREE.MeshBasicMaterial({
+      map: texture,
+      transparent: true,
+      opacity: 0.75,
+      depthWrite: false,
+      side: THREE.DoubleSide,
+    });
+
+    // Fewer, larger smoke planes for billowing smoke (not particle-like)
+    for (let i = 0; i < 8; i++) {
+      const size = 2.2 + Math.random() * 1.8;
+      const geo = new THREE.PlaneGeometry(size, size);
+      const mesh = new THREE.Mesh(geo, smokeMat.clone());
+      // Positions behind car (negative Z in group) - spread into a cloud
+      mesh.position.set(
+        (Math.random() - 0.5) * 2,
+        0.3 + Math.random() * 0.8,
+        -0.8 - Math.random() * 2.2,
+      );
+      mesh.userData.baseY = mesh.position.y;
+      mesh.userData.phase = Math.random() * Math.PI * 2;
+      mesh.userData.riseSpeed = 0.25 + Math.random() * 0.3;
+      mesh.userData.spread = 0.15 + Math.random() * 0.2;
+      group.add(mesh);
+    }
+    group.visible = false;
+    return group;
+  }
+
+  function addHeadlights(carGroup: THREE.Group, scale: number) {
+    // Car is scaled to 2.5 total; front is 1.25 from center. Local pos = 1.25/scale to reach front
+    const offset = 1.25 / scale;
+    const headlightWhite = 0xffffff;
+
+    // Front lights (model front may be +Z or -Z - we add both)
+    headlightLeft = new THREE.PointLight(headlightWhite, 0, 30, 1);
+    headlightLeft.position.set(0.35 * scale, 0.4 * scale, offset);
+    carGroup.add(headlightLeft);
+
+    headlightRight = new THREE.PointLight(headlightWhite, 0, 20, 1.5);
+    headlightRight.position.set(-0.35 * scale, 0.4 * scale, offset);
+    carGroup.add(headlightRight);
+
+    // Rear lights (animate all 4 - whichever faces camera will glow)
+    rearLightLeft = new THREE.PointLight(headlightWhite, 0, 25, 1.2);
+    rearLightLeft.position.set(0.35 * scale, 0.4 * scale, -offset);
+    carGroup.add(rearLightLeft);
+    rearLightRight = new THREE.PointLight(headlightWhite, 0, 25, 1.2);
+    rearLightRight.position.set(-0.35 * scale, 0.4 * scale, -offset);
+    carGroup.add(rearLightRight);
+
+    // Emissive headlight lenses - visible glow regardless of PointLight reach
+    const lensRadius = 0.18 * scale;
+    const nudge = 0.08 * scale; // push lenses slightly outward from car body
+    const positions: [number, number, number, boolean][] = [
+      [0.35 * scale, 0.4 * scale, offset + nudge, true],
+      [-0.35 * scale, 0.4 * scale, offset + nudge, true],
+      [0.35 * scale, 0.4 * scale, -offset - nudge, false],
+      [-0.35 * scale, 0.4 * scale, -offset - nudge, false],
+    ];
+    for (const [x, y, z, isFront] of positions) {
+      const geo = new THREE.CircleGeometry(lensRadius, 16);
+      const mat = new THREE.MeshBasicMaterial({
+        color: headlightWhite,
+        transparent: true,
+        opacity: 0,
+        depthWrite: false,
+        depthTest: false,
+        side: THREE.DoubleSide,
+      });
+      const mesh = new THREE.Mesh(geo, mat);
+      mesh.position.set(x, y, z);
+      mesh.renderOrder = 100;
+      if (!isFront) mesh.rotation.y = Math.PI;
+      carGroup.add(mesh);
+      headlightLenses.push({ mesh, mat });
+    }
+  }
+
+  function handleResize() {
+    if (!containerRef.value) return;
+    camera.aspect = containerRef.value.clientWidth / containerRef.value.clientHeight;
+    camera.updateProjectionMatrix();
+    renderer.setSize(containerRef.value.clientWidth, containerRef.value.clientHeight);
+  }
+
+  function setAllLights(intensity: number) {
+    if (headlightLeft) headlightLeft.intensity = intensity;
+    if (headlightRight) headlightRight.intensity = intensity;
+    if (rearLightLeft) rearLightLeft.intensity = intensity;
+    if (rearLightRight) rearLightRight.intensity = intensity;
+      const lensOpacity = Math.min(1, intensity / 50);
+      headlightLenses.forEach(({ mat }) => { mat.opacity = lensOpacity; });
+      headlightOverlays.forEach((mat) => { mat.opacity = lensOpacity; });
+    }
+
+  onMounted(() => {
+    if (!containerRef.value) return;
+
+    timer = new Timer();
+    timer.connect(document);
+
+    scene = new THREE.Scene();
+    scene.background = new THREE.Color(0x0a0a0a);
+
+    camera = new THREE.PerspectiveCamera(
+      50,
+      containerRef.value.clientWidth / containerRef.value.clientHeight,
+      0.1,
+      1000,
+    );
+    camera.position.set(0, 1.5, -10);
+    camera.lookAt(0, 0, 2);
+
+    renderer = new THREE.WebGLRenderer({ antialias: true });
+    renderer.setSize(containerRef.value.clientWidth, containerRef.value.clientHeight);
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    renderer.outputColorSpace = THREE.SRGBColorSpace;
+    renderer.toneMapping = THREE.ACESFilmicToneMapping;
+    renderer.toneMappingExposure = 1;
+    containerRef.value.appendChild(renderer.domElement);
+
+    scene.add(new THREE.AmbientLight(0xffffff, 0.3));
+    const dirLight = new THREE.DirectionalLight(0xffffff, 0.7);
+    dirLight.position.set(5, 10, 5);
+    scene.add(dirLight);
+
+    const groundGeo = new THREE.PlaneGeometry(60, 40);
+    const groundMat = new THREE.MeshStandardMaterial({
+      color: 0x0d0d0d,
+      roughness: 0.9,
+      metalness: 0,
+    });
+    const groundPlane = new THREE.Mesh(groundGeo, groundMat);
+    groundPlane.rotation.x = -Math.PI / 2;
+    groundPlane.position.y = -1;
+    groundPlane.position.z = 0;
+    scene.add(groundPlane);
+
+    // Vertical plane in front of camera for headlights to hit when car faces us
+    const screenPlane = new THREE.Mesh(
+      new THREE.PlaneGeometry(20, 12),
+      new THREE.MeshStandardMaterial({
+        color: 0x080808,
+        roughness: 0.95,
+        metalness: 0,
+      }),
+    );
+    screenPlane.position.set(0, 2, -5);
+    scene.add(screenPlane);
+
+    skidMarksGroup = createSkidMarks();
+    skidMarksGroup.position.set(0, -0.999, 0); // offset baked into mesh positions via SKID_OFFSET_X/Z
+    skidMarksGroup.renderOrder = 1; // render on top of ground
+    scene.add(skidMarksGroup);
+
+    smokeGroup = createSmoke();
+    scene.add(smokeGroup);
+
+    // Scene-level headlight overlays - positioned between car and camera for guaranteed visibility
+    const headlightWhite = 0xffffff;
+    const overlayGeo = new THREE.CircleGeometry(0.5, 24);
+    for (const x of [2.15, 2.85]) {
+      const mat = new THREE.MeshBasicMaterial({
+        color: headlightWhite,
+        transparent: true,
+        opacity: 0,
+        depthWrite: false,
+        depthTest: false,
+        side: THREE.DoubleSide,
+      });
+      const mesh = new THREE.Mesh(overlayGeo, mat);
+      mesh.position.set(x, 0.4, 2.4); // in front of car (2.5,0,3.5) facing camera
+      mesh.rotation.y = Math.PI; // face camera at z=-10
+      mesh.renderOrder = 200;
+      scene.add(mesh);
+      headlightOverlays.push(mat);
+    }
+
+    // Circular light flood - expands from headlights to fill screen when lights turn on
+    const floodGeo = new THREE.CircleGeometry(1, 32);
+    const floodMat = new THREE.MeshBasicMaterial({
+      color: headlightWhite,
+      transparent: true,
+      opacity: 0.85,
+      depthWrite: false,
+      depthTest: false,
+      side: THREE.DoubleSide,
+    });
+    lightFloodMesh = new THREE.Mesh(floodGeo, floodMat);
+    lightFloodMesh.position.set(2.5, 0.4, 0); // center between car and camera
+    lightFloodMesh.rotation.y = Math.PI; // face camera
+    lightFloodMesh.scale.setScalar(0);
+    lightFloodMesh.visible = false;
+    lightFloodMesh.renderOrder = 300;
+    scene.add(lightFloodMesh);
+
+    const loader = new GLTFLoader();
+    loader.load(
+      CAR_MODEL_URL,
+      (gltf) => {
+        car = gltf.scene;
+
+        const box = new THREE.Box3().setFromObject(car);
+        const center = box.getCenter(new THREE.Vector3());
+        const size = box.getSize(new THREE.Vector3());
+        const maxDim = Math.max(size.x, size.y, size.z);
+        const scale = 2.5 / maxDim;
+
+        car.position.sub(center);
+        car.scale.setScalar(scale);
+        car.rotation.y = 0;
+        car.position.set(0, 0, -6);
+
+        addHeadlights(car, scale);
+        // Enable transparency on car materials for light-flood fade-out
+        car.traverse((child) => {
+          if (child instanceof THREE.Mesh && child.material) {
+            const mat = child.material as THREE.Material;
+            if ('transparent' in mat) (mat as THREE.MeshStandardMaterial).transparent = true;
+            if ('opacity' in mat) (mat as THREE.MeshStandardMaterial).opacity = 1;
+          }
+        });
+        scene.add(car);
+        startElapsed = timer.getElapsed();
+      },
+      undefined,
+      (err) => console.error('Error loading car:', err),
+    );
+
+    function setAllLights(intensity: number) {
+      if (headlightLeft) headlightLeft.intensity = intensity;
+      if (headlightRight) headlightRight.intensity = intensity;
+      if (rearLightLeft) rearLightLeft.intensity = intensity;
+      if (rearLightRight) rearLightRight.intensity = intensity;
+      const lensOpacity = Math.min(1, intensity / 50);
+      headlightLenses.forEach(({ mat }) => { mat.opacity = lensOpacity; });
+      headlightOverlays.forEach((mat) => { mat.opacity = lensOpacity; });
+    }
+
+    function animate(timestamp?: number) {
+      frameId = requestAnimationFrame(animate);
+      timer.update(timestamp);
+      const t = timer.getElapsed() - startElapsed;
+
+      if (car) {
+        if (t < DRIFT_START) {
+          // Straight drive - drift starts at DRIFT_START while car is still moving up
+          const p = t / DRIFT_START;
+          car.position.set(0, 0, -6 + p * 4); // z: -6 to -2 over 1s
+          car.rotation.y = 0;
+          setAllLights(0);
+          skidMarksGroup.visible = false;
+          smokeGroup.visible = false;
+        } else if (t < DRIFT_START + DRIFT_DURATION) {
+          const p = (t - DRIFT_START) / DRIFT_DURATION;
+          // Drift while going up: from (0,-2) to (2.5,3.5) - rear kicks out, car moves forward
+          const rotationProgress = 1 - Math.pow(1 - p, 0.4);
+          const positionProgress = 1 - Math.pow(1 - p, 1.6);
+          const angle = positionProgress * Math.PI;
+          const R = 1.25;
+          const cx = 1.25;
+
+          const baseX = cx - R * Math.cos(angle);
+          const baseZ = -2 + 5.5 * positionProgress; // z increases during drift (going up)
+          const wobble = Math.sin(p * Math.PI) * 0.08;
+          car.position.set(baseX + wobble, 0, baseZ);
+          car.rotation.y = rotationProgress * Math.PI + wobble * 0.5;
+          setAllLights(0);
+
+          skidMarksGroup.visible = true;
+          skidMarksGroup.position.set(0, -0.999, 0); // offset baked into mesh positions
+          skidMarksGroup.updateMatrixWorld(true); // ensure position change is applied
+          skidMarksGroup.renderOrder = 1;
+          (skidMarksGroup.children as THREE.Mesh[]).forEach((m) => {
+            const mat = m.material as THREE.MeshBasicMaterial;
+            const segP = m.userData.segmentProgress as number;
+            // Reveal as rear tires pass - synced with smoke (both from sliding rear wheels)
+            const rearOffset = 0.05; // marks appear where rear tires have been
+            if (p < segP + rearOffset) {
+              mat.opacity = 0;
+            } else {
+              mat.opacity = 0.95 * Math.min(1, (p - segP - rearOffset) * 15);
+            }
+          });
+
+          smokeGroup.visible = true;
+          // Smoke behind car: offset in car's rear direction (rear = -forward)
+          const rearX = -Math.sin(car.rotation.y);
+          const rearZ = -Math.cos(car.rotation.y);
+          smokeGroup.position.set(
+            car.position.x + rearX * 1.8,
+            0,
+            car.position.z + rearZ * 1.8
+          );
+          smokeGroup.rotation.y = 0; // smoke stays fixed, does not turn with car
+          (smokeGroup.children as THREE.Mesh[]).forEach((m) => {
+            const mat = m.material as THREE.MeshBasicMaterial;
+            const driftProgress = p * 1.2;
+            mat.opacity = Math.min(0.85, driftProgress) * 0.7;
+            m.position.y = m.userData.baseY + Math.sin(t * 2.5 + m.userData.phase) * m.userData.riseSpeed;
+            m.position.x = Math.sin(t * 1.8 + m.userData.phase * 2) * m.userData.spread * driftProgress;
+          });
+        } else if (t < TOTAL_INTRO) {
+          car.position.set(2.5, 0, 3.5);
+          car.rotation.y = Math.PI;
+          skidMarksGroup.visible = true;
+          (skidMarksGroup.children as THREE.Mesh[]).forEach((m) => {
+            (m.material as THREE.MeshBasicMaterial).opacity = 0.85;
+          });
+          smokeGroup.visible = false;
+
+          const flashPhase = t - DRIFT_START - DRIFT_DURATION;
+          const cycleDuration = LIGHT_FLASH_DURATION / 3;
+          const cycleProgress = (flashPhase % cycleDuration) / cycleDuration;
+          // 3 attempts: each fades in then fades out (trying to start but failing)
+          const fade = cycleProgress < 0.5
+            ? cycleProgress * 2
+            : (1 - cycleProgress) * 2;
+          const attemptPeak = 25; // peaks at 25 during failed attempts - visible fade (opacity 0.5)
+          const fullIntensity = 50; // boosted for visibility
+          const intensity = Math.floor(flashPhase / cycleDuration) < 3 ? fade * attemptPeak : fullIntensity;
+          setAllLights(intensity);
+        } else {
+          car.position.set(2.5, 0, 3.5);
+          car.rotation.y = Math.PI;
+          setAllLights(50);
+          skidMarksGroup.visible = true;
+          smokeGroup.visible = false;
+
+          // Circular light flood - expands from center to fill whole page
+          const floodPhase = t - TOTAL_INTRO;
+          if (lightFloodMesh && floodPhase < LIGHT_FLOOD_DURATION) {
+            lightFloodMesh.visible = true;
+            const p = floodPhase / LIGHT_FLOOD_DURATION;
+            const eased = 1 - Math.pow(1 - p, 0.7); // ease-out for smooth expansion
+            const maxRadius = 25; // large enough to cover view at any aspect
+            lightFloodMesh.scale.setScalar(eased * maxRadius);
+            // Fade out headlights, skid marks and car as the big one scales up
+            const fadeOut = 1 - eased;
+            headlightOverlays.forEach((mat) => { mat.opacity = fadeOut; });
+            (skidMarksGroup.children as THREE.Mesh[]).forEach((m) => {
+              (m.material as THREE.MeshBasicMaterial).opacity = 0.85 * fadeOut;
+            });
+            car.traverse((child) => {
+              if (child instanceof THREE.Mesh && child.material) {
+                const mats = Array.isArray(child.material) ? child.material : [child.material];
+                mats.forEach((mat) => {
+                  if ('opacity' in mat) (mat as THREE.MeshStandardMaterial).opacity = fadeOut;
+                });
+              }
+            });
+          } else if (lightFloodMesh && floodPhase >= LIGHT_FLOOD_DURATION) {
+            lightFloodMesh.visible = true;
+            lightFloodMesh.scale.setScalar(25);
+            headlightOverlays.forEach((mat) => { mat.opacity = 0; });
+            (skidMarksGroup.children as THREE.Mesh[]).forEach((m) => {
+              (m.material as THREE.MeshBasicMaterial).opacity = 0;
+            });
+            car.traverse((child) => {
+              if (child instanceof THREE.Mesh && child.material && 'opacity' in child.material) {
+                (child.material as THREE.MeshStandardMaterial).opacity = 0;
+              }
+            });
+          }
+        }
+
+        const isRevealed = t >= TOTAL_INTRO; // whole content appears after 3 light flashes end
+        contentOpacity.value = isRevealed ? 1 : 0;
+      }
+
+      renderer.render(scene, camera);
+    }
+    animate();
+
+    window.addEventListener('resize', handleResize);
+  });
+
+  onBeforeUnmount(() => {
+    window.removeEventListener('resize', handleResize);
+    frameId && cancelAnimationFrame(frameId);
+    timer?.dispose?.();
+    renderer?.dispose();
+    renderer?.domElement?.remove();
+  });
+
+  return { contentOpacity };
+}
