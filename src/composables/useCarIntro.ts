@@ -724,7 +724,8 @@ export function useCarIntro(containerRef: Ref<HTMLElement | null>) {
         if (mat) {
           const mats = Array.isArray(mat) ? mat : [mat];
           mats.forEach((m) => {
-            if (m.map) m.map.dispose();
+            const tex = (m as THREE.MeshStandardMaterial).map;
+            if (tex) tex.dispose();
             m.dispose();
           });
         }
@@ -735,7 +736,7 @@ export function useCarIntro(containerRef: Ref<HTMLElement | null>) {
     // Skid marks (each mesh: cloned material, **shared** streak texture — dispose map once)
     if (skidMarksGroup) {
       scene.remove(skidMarksGroup);
-      let streakMap: THREE.Texture | null = null;
+      let streakMap: THREE.Texture | undefined;
       (skidMarksGroup.children as THREE.Mesh[]).forEach((m) => {
         if (m.geometry) m.geometry.dispose();
         const mat = m.material as THREE.MeshBasicMaterial | undefined;
@@ -744,7 +745,7 @@ export function useCarIntro(containerRef: Ref<HTMLElement | null>) {
           mat.dispose();
         }
       });
-      streakMap?.dispose();
+      if (streakMap) streakMap.dispose();
     }
 
     // Smoke (all meshes share one material + texture — dispose once)

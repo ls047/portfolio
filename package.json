@@ -27,6 +27,7 @@
     "@iconify/json": "^2.2.408",
     "@iconify/tailwind4": "^1.1.0",
     "@tailwindcss/vite": "^4.2.1",
+    "@types/three": "^0.183.1",
     "@typescript-eslint/eslint-plugin": "^8.38.0",
     "@typescript-eslint/parser": "^8.38.0",
     "@vitejs/plugin-vue": "^6.0.4",
