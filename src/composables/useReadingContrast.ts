@@ -1,5 +1,5 @@
 import { watch, nextTick, onBeforeUnmount, type Ref } from 'vue';
-import { isOnLightBackground } from '../utils/readingLight';
+import { sampleLightStrength, READING_LIGHT_THRESHOLD } from '../utils/readingLight';
 import { syncReadingVisualInks } from '../utils/syncReadingVisualInks';
 
 function applySectionTheme(section: HTMLElement, onLight: boolean) {
@@ -62,8 +62,14 @@ export function useReadingContrast(scrollContainerRef: Ref<HTMLElement | null>) 
       const anchor = section.querySelector('.section-content') ?? section;
       const rect = anchor.getBoundingClientRect();
       const px = rect.left + rect.width / 2;
-      const py = rect.top + rect.height / 2;
-      applySectionTheme(section, isOnLightBackground(px, py));
+      /* Vertical strip: section often crosses glow + vignette — blend samples */
+      const ys = [0.22, 0.5, 0.78].map((t) => rect.top + rect.height * t);
+      let strength = 0;
+      for (const py of ys) {
+        strength += sampleLightStrength(px, py);
+      }
+      strength /= ys.length;
+      applySectionTheme(section, strength > READING_LIGHT_THRESHOLD);
     });
   }
 

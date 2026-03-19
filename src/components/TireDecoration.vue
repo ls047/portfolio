@@ -47,7 +47,9 @@ watch(
     const id = setTimeout(() => {
       slideIn.value = true;
     }, 50); // brief delay so initial off-screen state is painted
-    return () => clearTimeout(id);
+    return () => {
+      clearTimeout(id);
+    };
   },
   { immediate: true }
 );
@@ -128,6 +130,7 @@ onBeforeUnmount(() => {
 </script>
 
 <style scoped>
+/* ─── Desktop / tablet: right vertical strip (slide in from right) ─── */
 .tire-decoration {
   position: fixed;
   right: 0;
@@ -140,7 +143,7 @@ onBeforeUnmount(() => {
   display: flex;
   align-items: center;
   justify-content: flex-start;
-  transform: translateX(100%); /* start off-screen right */
+  transform: translateX(100%);
   transition: transform 0.6s cubic-bezier(0.22, 1, 0.36, 1);
 }
 
@@ -161,33 +164,8 @@ onBeforeUnmount(() => {
 }
 
 .tire-decoration.tire-slided-in {
-  transform: translateX(0); /* slide in from right to current position */
-  transition-delay: 0.8s; /* wait for content fade-in (0.8s) to finish */
-}
-
-@media (max-width: 768px) {
-  .tire-decoration {
-    right: auto;
-    left: 50%;
-    top: 0;
-    width: 100vw;
-    height: 50vh;
-    transform: translateX(100vw); /* start off-screen right */
-    align-items: flex-start;
-    justify-content: center;
-  }
-
-  .tire-decoration.tire-slided-in {
-    transform: translateX(-50%); /* center - final position */
-  }
-
-  .tire-image-wrapper {
-    transform: translateY(-60%);
-    width: 80vw;
-    height: 80vw;
-    min-width: 80vw;
-    min-height: 80vw;
-  }
+  transform: translateX(0);
+  transition-delay: 0.8s;
 }
 
 .tire-decoration.is-dragging .tire-image-wrapper {
@@ -209,5 +187,33 @@ onBeforeUnmount(() => {
   height: 100%;
   object-fit: contain;
   transition: transform 0.05s linear;
+}
+
+/* ─── Mobile only: bottom-centered band (slide up); wheel sits lower in the viewport ─── */
+@media (max-width: 768px) {
+  .tire-decoration {
+    left: 0;
+    right: 0;
+    top: auto;
+    bottom: 0;
+    width: 100%;
+    height: min(40vh, 320px);
+    align-items: flex-end;
+    justify-content: center;
+    transform: translateY(100%);
+  }
+
+  .tire-decoration.tire-slided-in {
+    transform: translateY(0);
+  }
+
+  .tire-image-wrapper {
+    width: min(88vw, 400px);
+    height: min(88vw, 400px);
+    min-width: min(88vw, 400px);
+    min-height: min(88vw, 400px);
+    /* Push wheel further down — mostly below the fold */
+    transform: translateY(64%);
+  }
 }
 </style>

@@ -4,7 +4,10 @@ import { Timer } from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 
 import carModelUrl from '@/assets/1987_buick_grand_national_regal_gnx.glb?url';
+import skidSfxUrl from '@/audio/ES_Car, Skid To Stop, Tire Squeal - Epidemic Sound.mp3';
+import lampFlickerSfxUrl from '@/audio/freesound_community-fluorescent-lamp-flickering-17625.mp3';
 const CAR_MODEL_URL = carModelUrl;
+const LAMP_FLICKER_CLIP_MS = 3000;
 const LIGHT_ATTEMPT_PEAK = 30; // intensity during failed attempts (more visible fade)
 const DRIVE_DURATION = 2.5; // total drive time
 const DRIFT_START = 1.0; // drift begins DURING drive (car at z ≈ -2, still moving up)
@@ -215,6 +218,69 @@ export function useCarIntro(containerRef: Ref<HTMLElement | null>) {
     renderer.setSize(containerRef.value.clientWidth, containerRef.value.clientHeight);
   }
 
+  let skidSfxAudio: HTMLAudioElement | null = null;
+  let skidSfxPlayed = false;
+
+  function playSkidSfxOnce() {
+    if (skidSfxPlayed) return;
+    skidSfxPlayed = true;
+    try {
+      skidSfxAudio = new Audio(skidSfxUrl);
+      skidSfxAudio.volume = 0.72;
+      void skidSfxAudio.play().catch(() => {});
+    } catch {
+      /* autoplay / decode blocked */
+    }
+  }
+
+  function stopSkidSfx() {
+    if (!skidSfxAudio) return;
+    skidSfxAudio.pause();
+    skidSfxAudio.removeAttribute('src');
+    skidSfxAudio.load();
+    skidSfxAudio = null;
+  }
+
+  let lampFlickerAudio: HTMLAudioElement | null = null;
+  let lampFlickerClipTimer: ReturnType<typeof setTimeout> | null = null;
+  let lampFlickerStarted = false;
+
+  function playLampFlickerClipOnce() {
+    if (lampFlickerStarted) return;
+    lampFlickerStarted = true;
+    if (lampFlickerClipTimer) {
+      clearTimeout(lampFlickerClipTimer);
+      lampFlickerClipTimer = null;
+    }
+    try {
+      lampFlickerAudio = new Audio(lampFlickerSfxUrl);
+      lampFlickerAudio.volume = 0.5;
+      lampFlickerAudio.currentTime = 0;
+      void lampFlickerAudio.play().catch(() => {});
+      lampFlickerClipTimer = window.setTimeout(() => {
+        lampFlickerClipTimer = null;
+        if (lampFlickerAudio) {
+          lampFlickerAudio.pause();
+          lampFlickerAudio.currentTime = 0;
+        }
+      }, LAMP_FLICKER_CLIP_MS);
+    } catch {
+      /* ignore */
+    }
+  }
+
+  function stopLampFlicker() {
+    if (lampFlickerClipTimer) {
+      clearTimeout(lampFlickerClipTimer);
+      lampFlickerClipTimer = null;
+    }
+    if (!lampFlickerAudio) return;
+    lampFlickerAudio.pause();
+    lampFlickerAudio.removeAttribute('src');
+    lampFlickerAudio.load();
+    lampFlickerAudio = null;
+  }
+
   onMounted(() => {
     if (!containerRef.value) return;
 
@@ -412,6 +478,7 @@ export function useCarIntro(containerRef: Ref<HTMLElement | null>) {
           skidMarksGroup.visible = false;
           smokeGroup.visible = false;
         } else if (t < DRIFT_START + DRIFT_DURATION) {
+          playSkidSfxOnce();
           const p = (t - DRIFT_START) / DRIFT_DURATION;
           // Drift while going up: from (0,-2) to (2.5,3.5) - rear kicks out, car moves forward
           const rotationProgress = 1 - Math.pow(1 - p, 0.4);
@@ -461,6 +528,7 @@ export function useCarIntro(containerRef: Ref<HTMLElement | null>) {
             m.position.x = Math.sin(t * 1.8 + m.userData.phase * 2) * m.userData.spread * driftProgress;
           });
         } else if (t < TOTAL_INTRO) {
+          playLampFlickerClipOnce();
           car.position.set(2.5, 0, 3.5);
           car.rotation.y = Math.PI;
           skidMarksGroup.visible = true;
@@ -593,6 +661,8 @@ export function useCarIntro(containerRef: Ref<HTMLElement | null>) {
     webglRunning = false;
     cancelAnimationFrame(frameId);
     window.removeEventListener('resize', handleResize);
+    stopSkidSfx();
+    stopLampFlicker();
     if (!introWebglReady || introGpuTornDown) return;
     introGpuTornDown = true;
 

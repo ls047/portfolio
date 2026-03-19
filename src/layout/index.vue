@@ -76,7 +76,7 @@ watch(contentOpacity, (opacity) => {
   --section-divider: rgba(0, 0, 0, 0.14);
   --section-chip-bg: rgba(0, 0, 0, 0.08);
   --section-chip-text: #000000;
-  /* Left mirror of .tire-decoration (desktop: mid-height; mobile: ~tire top band) */
+  /* Desktop: left mirror of right tire strip — sync with readingLight.getLightCenterPx */
   --reading-light-x: min(11vw, 160px);
   --reading-light-y: 50%;
   /* White spotlight → black vignette; neutral mid grays only */
@@ -96,7 +96,10 @@ watch(contentOpacity, (opacity) => {
 
 @media (max-width: 768px) {
   .content-overlay {
-    --reading-light-y: 20%;
+    /* Mobile only: top-center spotlight + scroll attachment */
+    --reading-light-x: 50%;
+    --reading-light-y: 0%;
+    background-attachment: scroll;
   }
 }
 

@@ -2,11 +2,11 @@ import type { AppConfig } from './types';
 
 export const appConfig: AppConfig = {
   app: {
-    name: 'Vue Template',
-    title: 'Vue Template - Modern Vue 3 Application',
+    name: 'Ali Khalil',
+    title: 'Ali Khalil',
     description: 'A modern Vue 3 application built with TypeScript, Tailwind CSS, and Vite',
     version: '1.0.0',
-    author: 'Your Name',
+    author: 'Ali Khalil',
     url: 'https://example.com',
     language: 'en',
   },
@@ -104,17 +104,17 @@ export const appConfig: AppConfig = {
   },
 
   icons: {
-    favicon: '/vite.svg',
+    favicon: '/favicon.svg',
     sizes: ['192x192', '512x512'],
   },
 
   seo: {
-    title: 'Vue Template - Modern Vue 3 Application',
+    title: 'Ali Khalil',
     description: 'A modern Vue 3 application built with TypeScript, Tailwind CSS, and Vite',
     keywords: ['vue', 'vue3', 'typescript', 'tailwind', 'vite'],
     robots: 'index, follow',
     openGraph: {
-      siteName: 'Vue Template',
+      siteName: 'Ali Khalil',
       type: 'website',
       locale: 'en_US',
     },

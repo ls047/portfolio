@@ -1,21 +1,26 @@
-/**
- * Mirror of `.tire-decoration` on the right: same strip width, but centered on the left edge.
- * Tire: `width: min(22vw, 320px); right: 0` → bright core ≈ `min(11vw, 160px)` from the left.
- */
+/** Legacy tire strip sizing (still used if other code imports). */
 export const TIRE_STRIP_VW = 22;
 export const TIRE_STRIP_MAX_PX = 320;
 
-/** Tuned with `.reading-chars-visual` + page radial (smaller spotlight = higher threshold). */
-export const READING_LIGHT_THRESHOLD = 0.4;
+/**
+ * Above this strength → black ink / “on light” section theme.
+ * Lower = tighter bright core (flips to light-on-dark ink sooner as you leave center).
+ */
+export const READING_LIGHT_THRESHOLD = 0.32;
 
+/**
+ * Pixel center of the radial spotlight — keep in sync with `layout/index.vue`.
+ * Mobile (≤768px): top center. Larger: left mirror of tire strip, mid-height.
+ */
 export function getLightCenterPx(viewportWidth: number, viewportHeight: number): {
   x: number;
   y: number;
 } {
+  if (viewportWidth <= 768) {
+    return { x: viewportWidth / 2, y: 0 };
+  }
   const stripHalf = Math.min((viewportWidth * TIRE_STRIP_VW) / 100, TIRE_STRIP_MAX_PX) / 2;
-  /** Keep in sync with `layout/index.vue` `--reading-light-y` */
-  const yFrac = viewportWidth <= 768 ? 0.2 : 0.5;
-  return { x: stripHalf, y: viewportHeight * yFrac };
+  return { x: stripHalf, y: viewportHeight * 0.5 };
 }
 
 /** Strict binary ink for reading / contrast helpers */
@@ -39,8 +44,10 @@ export function sampleLightStrength(px: number, py: number): number {
     1
   );
   const r = Math.min(1, dist / maxD);
-  /* Smaller spotlight vs 0.62 — falloff starts closer to center */
-  return Math.max(0, Math.min(1, 1 - Math.pow(r / 0.52, 1.15)));
+  /* Steeper falloff vs CSS radial — ink/theme track visible glow ↔ vignette more tightly */
+  const core = 0.36;
+  const gamma = 1.32;
+  return Math.max(0, Math.min(1, 1 - Math.pow(r / core, gamma)));
 }
 
 /** True → dark text on bright glow; false → light text on dark vignette */

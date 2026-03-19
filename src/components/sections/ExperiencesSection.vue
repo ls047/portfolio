@@ -2,7 +2,7 @@
   <section :class="sectionRootClass">
     <div :class="sectionContentClass">
       <h2
-        class="reading-head mb-8 text-2xl font-bold sm:text-3xl"
+        class="reading-head mb-6 text-balance text-xl font-bold sm:mb-8 sm:text-2xl md:text-3xl"
         v-reading-chars="'Experiences'"
       />
       <ul class="space-y-10">
