@@ -17,30 +17,54 @@
         <div class="contact-primary-grid">
           <a
             :href="`tel:${normalizedPhone}`"
-            class="contact-card reading-border"
+            class="contact-card reading-border group"
           >
             <span
-              class="contact-card-kicker reading-subtle"
-              v-reading-chars="'Phone'"
-            />
-            <span
-              class="contact-card-value reading-link"
-              v-reading-chars="phone"
-            />
+              class="contact-card-icon-well"
+              aria-hidden="true"
+            >
+              <AppIcon
+                name="icon-[heroicons-outline--phone]"
+                :size="1.25"
+                class="text-[color:var(--section-body,#374151)] opacity-90"
+              />
+            </span>
+            <div class="contact-card-copy">
+              <span
+                class="contact-card-kicker reading-subtle"
+                v-reading-chars="'Phone'"
+              />
+              <span
+                class="contact-card-value reading-link"
+                v-reading-chars="phone"
+              />
+            </div>
           </a>
           <a
             :href="mailtoHref"
-            class="contact-card reading-border"
+            class="contact-card reading-border group"
             :aria-label="`Send email to ${email}`"
           >
             <span
-              class="contact-card-kicker reading-subtle"
-              v-reading-chars="'Email'"
-            />
-            <span
-              class="contact-card-value reading-link break-all"
-              v-reading-chars="email"
-            />
+              class="contact-card-icon-well"
+              aria-hidden="true"
+            >
+              <AppIcon
+                name="icon-[heroicons-outline--envelope]"
+                :size="1.25"
+                class="text-[color:var(--section-body,#374151)] opacity-90"
+              />
+            </span>
+            <div class="contact-card-copy">
+              <span
+                class="contact-card-kicker reading-subtle"
+                v-reading-chars="'Email'"
+              />
+              <span
+                class="contact-card-value reading-link break-all"
+                v-reading-chars="email"
+              />
+            </div>
           </a>
         </div>
 
@@ -84,7 +108,7 @@
             v-reading-chars="'Links'"
           />
           <ul
-            class="contact-links-list"
+            class="contact-links-grid"
             role="list"
           >
             <li
@@ -95,16 +119,28 @@
                 :href="link.url"
                 target="_blank"
                 rel="noopener noreferrer"
-                class="contact-link-row reading-border reading-link"
+                class="contact-link-card reading-border reading-link group"
               >
+                <span
+                  class="contact-card-icon-well contact-link-card-icon"
+                  aria-hidden="true"
+                >
+                  <AppIcon
+                    :name="iconForContactLink(link.url)"
+                    :size="1.2"
+                    class="text-[color:var(--section-body,#374151)] opacity-95"
+                  />
+                </span>
                 <span
                   class="contact-link-label font-medium"
                   v-reading-chars="link.label"
                 />
-                <span
-                  class="contact-link-arrow reading-subtle"
+                <AppIcon
+                  name="icon-[heroicons-outline--arrow-top-right-on-square]"
+                  :size="1"
+                  class="contact-link-external reading-subtle shrink-0 opacity-55 transition-opacity group-hover:opacity-100"
                   aria-hidden="true"
-                >↗</span>
+                />
               </a>
             </li>
           </ul>
@@ -117,6 +153,19 @@
 <script setup lang="ts">
 import { computed } from 'vue';
 import { sectionContentClass, sectionRootClass } from '@/constants/sectionLayout';
+import AppIcon from '@/components/global/AppIcon.vue';
+
+/**
+ * Full `icon-[set--name]` strings so Tailwind’s @iconify/tailwind4 plugin
+ * can see them at build time (classes built only inside AppIcon won’t scan).
+ */
+function iconForContactLink(url: string): string {
+  const u = url.toLowerCase();
+  if (u.includes('linkedin.com')) return 'icon-[simple-icons--linkedin]';
+  if (u.includes('github.com')) return 'icon-[simple-icons--github]';
+  if (u.includes('vercel.app') || u.includes('vercel.com')) return 'icon-[simple-icons--vercel]';
+  return 'icon-[heroicons-outline--globe-alt]';
+}
 
 const CONTACT_BLURB =
   'Open to projects, collaboration, and full-time roles — email works best for longer messages.';
@@ -168,21 +217,48 @@ const mailtoHref = computed(() => {
 
 .contact-card {
   display: flex;
-  min-height: 3.25rem;
-  flex-direction: column;
-  align-items: flex-start;
-  justify-content: center;
-  gap: 0.35rem;
+  min-height: 3.75rem;
+  flex-direction: row;
+  align-items: center;
+  gap: clamp(0.85rem, 2.5vw, 1.1rem);
   border-radius: 1rem;
   border-width: 1px;
   border-style: solid;
-  padding: clamp(1rem, 3vw, 1.25rem) clamp(1rem, 3vw, 1.35rem);
+  padding: clamp(1rem, 3vw, 1.2rem) clamp(1rem, 3vw, 1.25rem);
   text-decoration: none;
   transition:
     transform 0.2s ease,
     box-shadow 0.2s ease,
     background-color 0.2s ease;
   background: color-mix(in srgb, var(--section-chip-bg,f8f8f8) 35%, transparent);
+}
+
+.contact-card-copy {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: center;
+  gap: 0.35rem;
+}
+
+.contact-card-icon-well {
+  display: flex;
+  flex-shrink: 0;
+  width: 2.75rem;
+  height: 2.75rem;
+  align-items: center;
+  justify-content: center;
+  border-radius: 0.8rem;
+  transition: background-color 0.2s ease, transform 0.2s ease;
+  background: color-mix(in srgb, var(--section-chip-bg, rgba(0, 0, 0, 0.06)) 58%, transparent);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .contact-card:hover .contact-card-icon-well {
+    transform: scale(1.04);
+    background: color-mix(in srgb, var(--section-chip-bg, rgba(0, 0, 0, 0.06)) 72%, transparent);
+  }
 }
 
 @media (hover: hover) and (pointer: fine) {
@@ -249,45 +325,66 @@ const mailtoHref = computed(() => {
   opacity: 0.88;
 }
 
-.contact-links-list {
+.contact-links-grid {
   margin: 0;
   padding: 0;
   list-style: none;
-  display: flex;
-  flex-direction: column;
-  gap: 0.35rem;
+  display: grid;
+  gap: 0.65rem;
 }
 
-.contact-link-row {
-  display: flex;
-  min-height: 2.75rem;
-  align-items: center;
-  justify-content: space-between;
-  gap: 1rem;
-  border-radius: 0.875rem;
-  border-width: 1px;
-  border-style: solid;
-  padding: 0.65rem 1rem;
-  text-decoration: none;
-  transition:
-    background-color 0.18s ease,
-    transform 0.18s ease;
-}
-
-@media (hover: hover) and (pointer: fine) {
-  .contact-link-row:hover {
-    background: color-mix(in srgb, var(--section-chip-bg, rgba(0, 0, 0, 0.06)) 50%, transparent);
-    transform: translateX(2px);
+@media (min-width: 640px) {
+  .contact-links-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.75rem;
   }
 }
 
-.contact-link-row:focus-visible {
+.contact-link-card {
+  display: flex;
+  min-height: 3.5rem;
+  align-items: center;
+  gap: 0.85rem;
+  border-radius: 1rem;
+  border-width: 1px;
+  border-style: solid;
+  padding: 0.85rem 1rem;
+  text-decoration: none;
+  transition:
+    transform 0.2s ease,
+    box-shadow 0.2s ease,
+    background-color 0.2s ease;
+  background: color-mix(in srgb, var(--section-chip-bg, rgba(0, 0, 0, 0.06)) 35%, transparent);
+}
+
+.contact-link-card-icon {
+  width: 2.5rem;
+  height: 2.5rem;
+  border-radius: 0.75rem;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .contact-link-card:hover {
+    transform: translateY(-2px);
+    box-shadow:
+      0 10px 28px rgba(0, 0, 0, 0.07),
+      0 0 0 1px color-mix(in srgb, var(--section-divider, #ccc) 50%, transparent);
+  }
+
+  .contact-link-card:hover .contact-link-card-icon {
+    transform: scale(1.05);
+    background: color-mix(in srgb, var(--section-chip-bg, rgba(0, 0, 0, 0.06)) 72%, transparent);
+  }
+}
+
+.contact-link-card:focus-visible {
   outline: 2px solid var(--section-link, #3b82f6);
   outline-offset: 2px;
 }
 
 .contact-link-label {
   min-width: 0;
+  flex: 1 1 auto;
   font-size: 0.9375rem;
 }
 
@@ -297,22 +394,21 @@ const mailtoHref = computed(() => {
   }
 }
 
-.contact-link-arrow {
-  flex-shrink: 0;
-  font-size: 1.1rem;
-  line-height: 1;
-  opacity: 0.65;
+.contact-link-external {
+  margin-left: auto;
 }
 
 @media (prefers-reduced-motion: reduce) {
   .contact-card,
-  .contact-link-row {
+  .contact-link-card {
     transition: none;
   }
 
   @media (hover: hover) and (pointer: fine) {
     .contact-card:hover,
-    .contact-link-row:hover {
+    .contact-link-card:hover,
+    .contact-card:hover .contact-card-icon-well,
+    .contact-link-card:hover .contact-link-card-icon {
       transform: none;
     }
   }

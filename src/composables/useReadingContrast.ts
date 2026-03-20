@@ -47,7 +47,9 @@ function applySectionTheme(section: HTMLElement, onLight: boolean) {
   section.dataset.reading = mode;
 }
 
-export function useReadingContrast(scrollContainerRef: Ref<HTMLElement | null>) {
+export function useReadingContrast(scrollContainerRef: Ref<HTMLElement | null>): {
+  forceReadingUpdate: () => void;
+} {
   let cleanup: (() => void) | undefined;
   let rafId = 0;
 
@@ -71,6 +73,8 @@ export function useReadingContrast(scrollContainerRef: Ref<HTMLElement | null>) 
       strength /= ys.length;
       applySectionTheme(section, strength > READING_LIGHT_THRESHOLD);
     });
+    /* Ink must run after theme so --reading-ink-sync matches the same geometry pass */
+    syncInkImmediate();
   }
 
   /** Every physical scroll tick — ink must track before next paint (rAF batching alone feels “stuck”). */
@@ -85,6 +89,15 @@ export function useReadingContrast(scrollContainerRef: Ref<HTMLElement | null>) 
       rafId = 0;
       update();
     });
+  }
+
+  /** Same work as scroll/resize: section themes + ink (no rAF wait). For post-animation layout. */
+  function forceReadingUpdate() {
+    if (rafId) {
+      cancelAnimationFrame(rafId);
+      rafId = 0;
+    }
+    update();
   }
 
   function onScrollOrResize() {
@@ -133,4 +146,6 @@ export function useReadingContrast(scrollContainerRef: Ref<HTMLElement | null>) 
   onBeforeUnmount(() => {
     cleanup?.();
   });
+
+  return { forceReadingUpdate };
 }

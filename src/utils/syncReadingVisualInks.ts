@@ -8,7 +8,13 @@ export function syncReadingVisualInks(scrollRoot: HTMLElement): void {
   const samples: { el: HTMLElement; px: number; py: number }[] = [];
 
   for (const el of nodes) {
-    const r = el.getBoundingClientRect();
+    let r = el.getBoundingClientRect();
+    /* Unrevealed genie / compositor oddities can yield 0×0 — sample from section column */
+    if (r.width === 0 && r.height === 0) {
+      const section = el.closest('.section');
+      const anchor = section?.querySelector<HTMLElement>('.section-content') ?? section;
+      if (anchor) r = anchor.getBoundingClientRect();
+    }
     if (r.width === 0 && r.height === 0) continue;
     samples.push({
       el,

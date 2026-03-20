@@ -6,7 +6,7 @@
       class="fixed inset-0 z-0 w-full h-full"
     />
 
-    <!-- Page content - revealed after car intro -->
+    <!-- Page content (radial backdrop); section bodies use SectionReveal genie -->
     <div
       ref="contentOverlayRef"
       class="content-overlay content-scroll relative z-10"
@@ -25,25 +25,36 @@
 </template>
 
 <script setup lang="ts">
-import { ref, provide, watch, computed } from 'vue';
+import { ref, provide, watch, computed, nextTick } from 'vue';
 import { useCarIntro } from '../composables/useCarIntro';
 import { useReadingContrast } from '../composables/useReadingContrast';
 import TireDecoration from '../components/TireDecoration.vue';
 
 const canvasContainer = ref<HTMLElement | null>(null);
 const contentOverlayRef = ref<HTMLElement | null>(null);
-provide('scrollContainerRef', contentOverlayRef);
 
 const { contentOpacity } = useCarIntro(canvasContainer);
-useReadingContrast(contentOverlayRef);
+const { forceReadingUpdate } = useReadingContrast(contentOverlayRef);
+
+/** Full section theme + per-word ink (scroll does this; ink-only pokes miss theme + wrong rects mid-animation). */
+function pokeReadingVisualSync() {
+  forceReadingUpdate();
+}
+
+provide('scrollContainerRef', contentOverlayRef);
+provide('pokeReadingVisualSync', pokeReadingVisualSync);
 
 const lightStyle = computed(() => ({
   opacity: contentOpacity.value,
 }));
+
 const tireVisible = ref(false);
 
 watch(contentOpacity, (opacity) => {
   if (opacity >= 1) {
+    void nextTick(() => {
+      requestAnimationFrame(() => forceReadingUpdate());
+    });
     const t = setTimeout(() => {
       tireVisible.value = true;
     }, 800);
@@ -66,6 +77,7 @@ watch(contentOpacity, (opacity) => {
 .content-overlay {
   min-height: 100vh;
   overflow: hidden;
+  transition: opacity 0.8s ease-out;
   /* Defaults until useReadingContrast sets per-section vars (black / white only) */
   --section-heading: #000000;
   --section-body: #000000;
@@ -91,7 +103,6 @@ watch(contentOpacity, (opacity) => {
   );
   background-attachment: fixed;
   background-position: center;
-  transition: opacity 0.8s ease-out;
 }
 
 @media (max-width: 768px) {

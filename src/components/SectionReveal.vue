@@ -1,51 +1,82 @@
 <template>
-  <div
-    ref="rootRef"
-    class="section-reveal min-w-0 w-full"
-    :data-section-visible="revealed"
-    :style="cardStyle"
-  >
-    <slot />
+  <div ref="ioTargetRef" class="section-reveal-host min-w-0 w-full">
+    <div
+      class="section-reveal min-w-0 w-full"
+      :class="revealClasses"
+      :data-section-visible="dataSectionVisible"
+      @animationend="onRevealAnimationEnd"
+    >
+      <slot />
+    </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import {
-  ref,
-  computed,
-  watch,
-  onBeforeUnmount,
-  nextTick,
-  inject,
-} from 'vue';
+import { ref, computed, watch, onBeforeUnmount, nextTick, inject } from 'vue';
 import type { Ref } from 'vue';
 
-/** Scroll container from layout (`content-overlay.content-scroll`). */
 const scrollContainerRef = inject<Ref<HTMLElement | null> | undefined>('scrollContainerRef');
+const pokeReadingVisualSync = inject<(() => void) | undefined>('pokeReadingVisualSync', undefined);
 
-const rootRef = ref<HTMLElement | null>(null);
-/** Latched: hidden until the user scrolls far enough in, then stays visible. */
-const revealed = ref(false);
+const ioTargetRef = ref<HTMLElement | null>(null);
+/** Section is “open” in the scroll viewport (door visible). */
+const open = ref(false);
+/** After first IntersectionObserver callback — avoids playing retract on initial off-screen mount. */
+const ioReady = ref(false);
+/** Has ever been open — retract only runs after user saw the section at least once. */
+const everOpened = ref(false);
 
+let emergeTimerIds: number[] = [];
 let observer: IntersectionObserver | null = null;
 
-/** Need ~this much of the section visible before revealing (0–1). */
-const REVEAL_AT = 0.12;
+function clearEmergeTimers() {
+  emergeTimerIds.forEach((id) => clearTimeout(id));
+  emergeTimerIds = [];
+}
 
-const cardStyle = computed(() => ({
-  opacity: revealed.value ? 1 : 0,
-  transform: revealed.value ? 'translateY(0)' : 'translateY(1.25rem)',
-  pointerEvents: (revealed.value ? 'auto' : 'none') as 'auto' | 'none',
-}));
+/** Ink is sampled from word positions; tire-emerge animates transforms ~1.5s — one rAF is far too early. */
+function scheduleEmergeResync() {
+  clearEmergeTimers();
+  const poke = () => {
+    void nextTick(() => {
+      requestAnimationFrame(() => pokeReadingVisualSync?.());
+    });
+  };
+  poke();
+  emergeTimerIds.push(
+    window.setTimeout(poke, 380),
+    window.setTimeout(poke, 720),
+    window.setTimeout(poke, 1520),
+  );
+}
+
+function onRevealAnimationEnd(ev: AnimationEvent) {
+  if (!open.value) return;
+  if (!/tire-emerge/i.test(ev.animationName)) return;
+  clearEmergeTimers();
+  void nextTick(() => {
+    requestAnimationFrame(() => pokeReadingVisualSync?.());
+  });
+}
+
+/** Enter vs leave hysteresis (ratio of layout box inside scrollport). */
+const IO_ENTER = 0.065;
+const IO_LEAVE = 0.028;
 
 function disconnect() {
   observer?.disconnect();
   observer = null;
 }
 
+function computeOpen(entry: IntersectionObserverEntry, wasOpen: boolean): boolean {
+  if (!entry.isIntersecting) return false;
+  if (wasOpen) return entry.intersectionRatio > IO_LEAVE;
+  return entry.intersectionRatio >= IO_ENTER;
+}
+
 function connect() {
   disconnect();
-  const el = rootRef.value;
+  const el = ioTargetRef.value;
   const root = scrollContainerRef?.value ?? null;
   if (!el) return;
 
@@ -53,37 +84,275 @@ function connect() {
     (entries) => {
       const e = entries[0];
       if (!e) return;
-      if (e.intersectionRatio >= REVEAL_AT) {
-        revealed.value = true;
+
+      const next = computeOpen(e, open.value);
+
+      if (!ioReady.value) {
+        ioReady.value = true;
+        open.value = next;
+        if (next) {
+          everOpened.value = true;
+          scheduleEmergeResync();
+        } else {
+          clearEmergeTimers();
+        }
+        return;
+      }
+
+      if (next === open.value) return;
+      open.value = next;
+      if (next) {
+        everOpened.value = true;
+        scheduleEmergeResync();
+      } else {
+        clearEmergeTimers();
       }
     },
     {
       root,
-      rootMargin: '0px',
-      threshold: [0, 0.06, REVEAL_AT, 0.2, 0.35, 0.5, 0.65, 0.8, 0.95, 1],
-    }
+      rootMargin: '-6% 0px -8% 0px',
+      threshold: [0, 0.02, 0.04, 0.06, 0.1, 0.15, 0.25, 0.4, 0.55, 0.7, 0.85, 1],
+    },
   );
   observer.observe(el);
 }
 
+const revealClasses = computed(() => {
+  if (!ioReady.value) return {};
+  if (open.value) return { 'section-reveal--open': true };
+  if (everOpened.value) return { 'section-reveal--closed': true };
+  return {};
+});
+
+const dataSectionVisible = computed(() => ioReady.value && open.value);
+
 watch(
-  () => [scrollContainerRef?.value, rootRef.value] as const,
+  () => [scrollContainerRef?.value, ioTargetRef.value] as const,
   async () => {
     await nextTick();
     connect();
   },
-  { immediate: true }
+  { immediate: true },
 );
 
 onBeforeUnmount(() => {
+  clearEmergeTimers();
   disconnect();
 });
 </script>
 
 <style scoped>
+.section-reveal-host {
+  overflow: visible;
+}
+
+/* Resting “behind tire” — no motion class yet, or after retract completes (forwards). */
 .section-reveal {
-  transition:
-    opacity 0.65s cubic-bezier(0.22, 1, 0.36, 1),
-    transform 0.65s cubic-bezier(0.22, 1, 0.36, 1);
+  opacity: 0;
+  pointer-events: none;
+  transform-style: preserve-3d;
+  transform-origin: calc(100% + min(11vw, 160px)) 50%;
+  transform:
+    perspective(1100px)
+    translate3d(min(5vw, 48px), 0, -980px)
+    rotateY(26deg)
+    scale3d(0.1, 0.1, 1);
+  filter: blur(14px) brightness(0.62) saturate(0.9);
+}
+
+.section-reveal--open {
+  pointer-events: auto;
+  animation: tire-emerge-desktop 1.48s forwards;
+}
+
+.section-reveal--closed {
+  pointer-events: none;
+  animation: tire-retract-desktop 1.22s forwards;
+}
+
+@media (max-width: 768px) {
+  .section-reveal {
+    transform-origin: 50% calc(100% + min(20vh, 150px));
+    transform:
+      perspective(1100px)
+      translate3d(0, min(5vh, 40px), -980px)
+      rotateX(42deg)
+      scale3d(0.1, 0.1, 1);
+    filter: blur(13px) brightness(0.6) saturate(0.88);
+  }
+
+  .section-reveal--open {
+    animation-name: tire-emerge-mobile;
+  }
+
+  .section-reveal--closed {
+    animation-name: tire-retract-mobile;
+  }
+}
+
+/* Door opens: slip from behind tire at 0.1 → then grow in view */
+@keyframes tire-emerge-desktop {
+  0% {
+    opacity: 0;
+    filter: blur(14px) brightness(0.62);
+    transform:
+      perspective(1100px)
+      translate3d(min(5vw, 48px), 0, -980px)
+      rotateY(26deg)
+      scale3d(0.1, 0.1, 1);
+    animation-timing-function: cubic-bezier(0.22, 1, 0.38, 1);
+  }
+  12% {
+    opacity: 1;
+  }
+  40% {
+    opacity: 1;
+    filter: blur(4px) brightness(0.9);
+    transform:
+      perspective(1100px)
+      translate3d(0, 0, 0)
+      rotateY(0deg)
+      scale3d(0.1, 0.1, 1);
+    animation-timing-function: cubic-bezier(0.18, 0.92, 0.22, 1);
+  }
+  100% {
+    opacity: 1;
+    filter: none;
+    transform:
+      perspective(1100px)
+      translate3d(0, 0, 0)
+      rotateY(0deg)
+      scale3d(1, 1, 1);
+  }
+}
+
+@keyframes tire-emerge-mobile {
+  0% {
+    opacity: 0;
+    filter: blur(13px) brightness(0.6);
+    transform:
+      perspective(1100px)
+      translate3d(0, min(5vh, 40px), -980px)
+      rotateX(42deg)
+      scale3d(0.1, 0.1, 1);
+    animation-timing-function: cubic-bezier(0.22, 1, 0.38, 1);
+  }
+  12% {
+    opacity: 1;
+  }
+  40% {
+    opacity: 1;
+    filter: blur(4px) brightness(0.9);
+    transform:
+      perspective(1100px)
+      translate3d(0, 0, 0)
+      rotateX(0deg)
+      scale3d(0.1, 0.1, 1);
+    animation-timing-function: cubic-bezier(0.18, 0.92, 0.22, 1);
+  }
+  100% {
+    opacity: 1;
+    filter: none;
+    transform:
+      perspective(1100px)
+      translate3d(0, 0, 0)
+      rotateX(0deg)
+      scale3d(1, 1, 1);
+  }
+}
+
+/* Door closes: shrink in place, then tuck behind tire */
+@keyframes tire-retract-desktop {
+  0% {
+    opacity: 1;
+    filter: none;
+    transform:
+      perspective(1100px)
+      translate3d(0, 0, 0)
+      rotateY(0deg)
+      scale3d(1, 1, 1);
+    animation-timing-function: cubic-bezier(0.28, 0.1, 0.29, 1);
+  }
+  42% {
+    opacity: 1;
+    filter: blur(4px) brightness(0.9);
+    transform:
+      perspective(1100px)
+      translate3d(0, 0, 0)
+      rotateY(0deg)
+      scale3d(0.1, 0.1, 1);
+    animation-timing-function: cubic-bezier(0.22, 1, 0.38, 1);
+  }
+  85% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+    filter: blur(14px) brightness(0.62);
+    transform:
+      perspective(1100px)
+      translate3d(min(5vw, 48px), 0, -980px)
+      rotateY(26deg)
+      scale3d(0.1, 0.1, 1);
+  }
+}
+
+@keyframes tire-retract-mobile {
+  0% {
+    opacity: 1;
+    filter: none;
+    transform:
+      perspective(1100px)
+      translate3d(0, 0, 0)
+      rotateX(0deg)
+      scale3d(1, 1, 1);
+    animation-timing-function: cubic-bezier(0.28, 0.1, 0.29, 1);
+  }
+  42% {
+    opacity: 1;
+    filter: blur(4px) brightness(0.9);
+    transform:
+      perspective(1100px)
+      translate3d(0, 0, 0)
+      rotateX(0deg)
+      scale3d(0.1, 0.1, 1);
+    animation-timing-function: cubic-bezier(0.22, 1, 0.38, 1);
+  }
+  85% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+    filter: blur(13px) brightness(0.6);
+    transform:
+      perspective(1100px)
+      translate3d(0, min(5vh, 40px), -980px)
+      rotateX(42deg)
+      scale3d(0.1, 0.1, 1);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .section-reveal {
+    transform: scale3d(0.1, 0.1, 1);
+    filter: none;
+    transition:
+      opacity 0.4s ease,
+      transform 0.45s ease;
+  }
+
+  .section-reveal--open {
+    animation: none;
+    opacity: 1;
+    pointer-events: auto;
+    transform: scale3d(1, 1, 1);
+  }
+
+  .section-reveal--closed {
+    animation: none;
+    opacity: 0;
+    pointer-events: none;
+    transform: scale3d(0.1, 0.1, 1);
+  }
 }
 </style>

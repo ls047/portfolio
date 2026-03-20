@@ -1,6 +1,5 @@
 import { ref, onMounted, onBeforeUnmount, type Ref } from 'vue';
 import * as THREE from 'three';
-import { Timer } from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 
 import carModelUrl from '@/assets/1987_buick_grand_national_regal_gnx.glb?url';
@@ -9,9 +8,16 @@ import lampFlickerSfxUrl from '@/audio/freesound_community-fluorescent-lamp-flic
 const CAR_MODEL_URL = carModelUrl;
 const LAMP_FLICKER_CLIP_MS = 3000;
 const LIGHT_ATTEMPT_PEAK = 30; // intensity during failed attempts (more visible fade)
-const DRIVE_DURATION = 2.5; // total drive time
-const DRIFT_START = 1.0; // drift begins DURING drive (car at z ≈ -2, still moving up)
+const DRIFT_START = 1.0; // straight-line drive duration (s); drift begins when car hits DRIVE_END_Z
+/** Z where straight drive ends — must match drift phase at p=0 (baseZ = -2). */
+const DRIVE_END_Z = -2;
+/** Start closer to camera so the car fills the lower frame and motion reads from frame 0. */
+const DRIVE_START_Z = -8.85;
 const DRIFT_DURATION = 1.5;
+/** When within drift phase, play once `p` (0=start…1=end of drift) reaches this — easy to tune; ~0.004 ≈ first 6ms. */
+const SKID_SFX_AT_P = 0.004;
+/** Skip silent lead-in in the MP3 (seconds). Only set if the clip has dead air and still sounds late after lowering `SKID_SFX_AT_P`. */
+const SKID_SFX_TRIM_START_SEC = 0;
 const LIGHT_FLASH_DURATION = 2.0;
 const LIGHT_FLOOD_DURATION = 1.2; // circular light expands to fill screen when 3rd flash hits
 const LIGHT_FLOOD_START = DRIFT_START + DRIFT_DURATION + (2 / 3) * LIGHT_FLASH_DURATION; // flood starts on 3rd flash
@@ -20,6 +26,13 @@ const TOTAL_INTRO = DRIFT_START + DRIFT_DURATION + LIGHT_FLASH_DURATION; // cont
 // Skid marks offset from arc center (1.25, 0.75) - applied directly to mesh world positions
 const SKID_OFFSET_X = 1.0;
 const SKID_OFFSET_Z = 8.0;
+
+function waitForPageLoaded(): Promise<void> {
+  return new Promise((resolve) => {
+    if (document.readyState === 'complete') resolve();
+    else window.addEventListener('load', () => resolve(), { once: true });
+  });
+}
 
 export function useCarIntro(containerRef: Ref<HTMLElement | null>) {
   const contentOpacity = ref(0);
@@ -41,16 +54,67 @@ export function useCarIntro(containerRef: Ref<HTMLElement | null>) {
   let skidMarksGroup: THREE.Group;
   let smokeGroup: THREE.Group;
   let groundPlane: THREE.Mesh | null = null;
+  let groundRoadTexture: THREE.CanvasTexture | null = null;
   let screenPlane: THREE.Mesh | null = null;
   let ambientLight: THREE.AmbientLight | null = null;
   let dirLight: THREE.DirectionalLight | null = null;
   let introDisposed = false;
   let introWebglReady = false;
   let introGpuTornDown = false;
+  let carIntroCancelled = false;
   let webglRunning = false;
   let frameId = 0;
-  let timer: InstanceType<typeof Timer>;
-  let startElapsed = 0;
+
+  /** Procedural asphalt + lane markings (matches PlaneGeometry UVs: U ≈ world X, V ≈ world Z). */
+  function createRoadTexture(): THREE.CanvasTexture {
+    const w = 1024;
+    const h = 768;
+    const canvas = document.createElement('canvas');
+    canvas.width = w;
+    canvas.height = h;
+    const ctx = canvas.getContext('2d')!;
+
+    const grd = ctx.createLinearGradient(0, 0, 0, h);
+    grd.addColorStop(0, '#2a2a2c');
+    grd.addColorStop(0.5, '#262628');
+    grd.addColorStop(1, '#222224');
+    ctx.fillStyle = grd;
+    ctx.fillRect(0, 0, w, h);
+
+    const img = ctx.getImageData(0, 0, w, h);
+    const d = img.data;
+    for (let i = 0; i < d.length; i += 4) {
+      const n = (Math.random() - 0.5) * 14;
+      d[i] = Math.max(0, Math.min(255, d[i] + n));
+      d[i + 1] = Math.max(0, Math.min(255, d[i + 1] + n));
+      d[i + 2] = Math.max(0, Math.min(255, d[i + 2] + n));
+    }
+    ctx.putImageData(img, 0, 0);
+
+    const laneTint = 'rgba(255, 255, 255, 0.04)';
+    ctx.fillStyle = laneTint;
+    ctx.fillRect(Math.floor(w * 0.2), 0, Math.floor(w * 0.22), h);
+    ctx.fillRect(Math.floor(w * 0.58), 0, Math.floor(w * 0.22), h);
+
+    const edgeW = Math.max(3, Math.floor(w * 0.006));
+    const edgeInset = Math.floor(w * 0.055);
+    ctx.fillStyle = '#ececec';
+    ctx.fillRect(edgeInset, 0, edgeW, h);
+    ctx.fillRect(w - edgeInset - edgeW, 0, edgeW, h);
+
+    const dashW = Math.max(4, Math.floor(w * 0.01));
+    const cx = Math.floor(w / 2 - dashW / 2);
+    const dashLen = Math.floor(h / 28);
+    const gapLen = Math.floor(h / 22);
+    ctx.fillStyle = '#d4af37';
+    for (let y = -dashLen; y < h + dashLen; y += dashLen + gapLen) {
+      ctx.fillRect(cx, y, dashW, dashLen);
+    }
+
+    const tex = new THREE.CanvasTexture(canvas);
+    tex.colorSpace = THREE.SRGBColorSpace;
+    return tex;
+  }
 
   function createSkidMarks() {
     const group = new THREE.Group();
@@ -218,22 +282,68 @@ export function useCarIntro(containerRef: Ref<HTMLElement | null>) {
     renderer.setSize(containerRef.value.clientWidth, containerRef.value.clientHeight);
   }
 
+  function disposeObject3DTree(root: THREE.Object3D) {
+    root.traverse((obj) => {
+      const mesh = obj as THREE.Mesh;
+      if (mesh.geometry) mesh.geometry.dispose();
+      const mat = mesh.material;
+      if (!mat) return;
+      const mats = Array.isArray(mat) ? mat : [mat];
+      mats.forEach((m) => {
+        const mm = m as THREE.MeshStandardMaterial;
+        if (mm.map) mm.map.dispose();
+        m.dispose();
+      });
+    });
+  }
+
   let skidSfxAudio: HTMLAudioElement | null = null;
+  let skidSfxPreload: HTMLAudioElement | null = null;
   let skidSfxPlayed = false;
+
+  function preloadSkidSfx() {
+    if (skidSfxPreload) return;
+    try {
+      const a = new Audio(skidSfxUrl);
+      a.preload = 'auto';
+      void a.load();
+      skidSfxPreload = a;
+    } catch {
+      /* ignore */
+    }
+  }
 
   function playSkidSfxOnce() {
     if (skidSfxPlayed) return;
     skidSfxPlayed = true;
     try {
-      skidSfxAudio = new Audio(skidSfxUrl);
-      skidSfxAudio.volume = 0.72;
-      void skidSfxAudio.play().catch(() => {});
+      const a = skidSfxPreload ?? new Audio(skidSfxUrl);
+      skidSfxPreload = null;
+      skidSfxAudio = a;
+      a.volume = 0.72;
+      const applyTrimAndPlay = () => {
+        const trim = SKID_SFX_TRIM_START_SEC;
+        if (trim > 0 && Number.isFinite(a.duration) && a.duration > trim + 0.05) {
+          a.currentTime = trim;
+        } else {
+          a.currentTime = 0;
+        }
+        void a.play().catch(() => {});
+      };
+      if (a.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA) applyTrimAndPlay();
+      else a.addEventListener('canplay', applyTrimAndPlay, { once: true });
     } catch {
       /* autoplay / decode blocked */
     }
   }
 
   function stopSkidSfx() {
+    if (skidSfxPreload) {
+      skidSfxPreload.pause();
+      skidSfxPreload.removeAttribute('src');
+      skidSfxPreload.load();
+      skidSfxPreload = null;
+    }
     if (!skidSfxAudio) return;
     skidSfxAudio.pause();
     skidSfxAudio.removeAttribute('src');
@@ -284,10 +394,13 @@ export function useCarIntro(containerRef: Ref<HTMLElement | null>) {
   onMounted(() => {
     if (!containerRef.value) return;
 
-    timer = new Timer();
-    timer.connect(document);
+    void (async () => {
+      await waitForPageLoaded();
+      if (carIntroCancelled || !containerRef.value) return;
 
-    scene = new THREE.Scene();
+      void fetch(CAR_MODEL_URL, { mode: 'cors', credentials: 'same-origin' }).catch(() => {});
+
+      scene = new THREE.Scene();
     introWebglReady = true;
     scene.background = new THREE.Color(0x2a2a2a);
 
@@ -321,10 +434,13 @@ export function useCarIntro(containerRef: Ref<HTMLElement | null>) {
     scene.add(dirLight);
 
     const groundGeo = new THREE.PlaneGeometry(60, 40);
+    groundRoadTexture = createRoadTexture();
+    groundRoadTexture.anisotropy = Math.min(8, renderer.capabilities.getMaxAnisotropy());
     const groundMat = new THREE.MeshStandardMaterial({
-      color: 0x353535,
-      roughness: 0.9,
-      metalness: 0,
+      map: groundRoadTexture,
+      color: 0xffffff,
+      roughness: 0.92,
+      metalness: 0.02,
     });
     groundPlane = new THREE.Mesh(groundGeo, groundMat);
     groundPlane.rotation.x = -Math.PI / 2;
@@ -418,10 +534,16 @@ export function useCarIntro(containerRef: Ref<HTMLElement | null>) {
     lightFloodMesh.renderOrder = 300;
     scene.add(lightFloodMesh);
 
-    const loader = new GLTFLoader();
-    loader.load(
-      CAR_MODEL_URL,
-      (gltf) => {
+      let introT0 = -1;
+
+      const loader = new GLTFLoader();
+      try {
+        const gltf = await loader.loadAsync(CAR_MODEL_URL);
+        if (carIntroCancelled || introGpuTornDown || !containerRef.value) {
+          disposeObject3DTree(gltf.scene);
+          return;
+        }
+
         car = gltf.scene;
 
         const box = new THREE.Box3().setFromObject(car);
@@ -433,7 +555,7 @@ export function useCarIntro(containerRef: Ref<HTMLElement | null>) {
         car.position.sub(center);
         car.scale.setScalar(scale);
         car.rotation.y = 0;
-        car.position.set(0, 0, -6);
+        car.position.set(0, 0, DRIVE_START_Z);
 
         addHeadlights(car, scale);
         // Enable transparency on car materials for light-flood fade-out
@@ -445,14 +567,19 @@ export function useCarIntro(containerRef: Ref<HTMLElement | null>) {
           }
         });
         scene.add(car);
-        startElapsed = timer.getElapsed();
-      },
-      undefined,
-      (err) => {
+
+        renderer.compile(scene, camera);
+        renderer.render(scene, camera);
+
+        preloadSkidSfx();
+
+        webglRunning = true;
+        window.addEventListener('resize', handleResize);
+        frameId = requestAnimationFrame(animate);
+      } catch (err) {
         console.error('Error loading car:', err);
         shutdownIntroWebGL();
-      },
-    );
+      }
 
     function setAllLights(intensity: number) {
       if (headlightLeft) headlightLeft.intensity = intensity;
@@ -465,24 +592,26 @@ export function useCarIntro(containerRef: Ref<HTMLElement | null>) {
     }
 
     function animate(timestamp?: number) {
-      timer.update(timestamp);
-      const t = timer.getElapsed() - startElapsed;
+      const ts = timestamp ?? performance.now();
+      if (introT0 < 0) introT0 = ts;
+      const t = (ts - introT0) / 1000;
 
       if (car) {
         if (t < DRIFT_START) {
-          // Straight drive - drift starts at DRIFT_START while car is still moving up
-          const p = t / DRIFT_START;
-          car.position.set(0, 0, -6 + p * 4); // z: -6 to -2 over 1s
+          // Straight drive — linear so speed is constant (no “ease” slow-start)
+          const raw = Math.min(1, Math.max(0, t / DRIFT_START));
+          const z = DRIVE_START_Z + raw * (DRIVE_END_Z - DRIVE_START_Z);
+          car.position.set(0, 0, z);
           car.rotation.y = 0;
           setAllLights(0);
           skidMarksGroup.visible = false;
           smokeGroup.visible = false;
         } else if (t < DRIFT_START + DRIFT_DURATION) {
-          playSkidSfxOnce();
           const p = (t - DRIFT_START) / DRIFT_DURATION;
           // Drift while going up: from (0,-2) to (2.5,3.5) - rear kicks out, car moves forward
           const rotationProgress = 1 - Math.pow(1 - p, 0.4);
           const positionProgress = 1 - Math.pow(1 - p, 1.6);
+          if (p >= SKID_SFX_AT_P) playSkidSfxOnce();
           const angle = positionProgress * Math.PI;
           const R = 1.25;
           const cx = 1.25;
@@ -650,10 +779,7 @@ export function useCarIntro(containerRef: Ref<HTMLElement | null>) {
       }
     }
 
-    webglRunning = true;
-    animate();
-
-    window.addEventListener('resize', handleResize);
+    })();
   });
 
   /** After intro: stop rAF, dispose car-era + environment meshes, tear down WebGL (no idle GPU). */
@@ -679,7 +805,12 @@ export function useCarIntro(containerRef: Ref<HTMLElement | null>) {
     if (groundPlane) {
       scene.remove(groundPlane);
       groundPlane.geometry.dispose();
-      (groundPlane.material as THREE.Material).dispose();
+      const gm = groundPlane.material as THREE.MeshStandardMaterial;
+      if (gm.map) {
+        gm.map.dispose();
+        groundRoadTexture = null;
+      }
+      gm.dispose();
       groundPlane = null;
     }
     if (screenPlane) {
@@ -698,7 +829,6 @@ export function useCarIntro(containerRef: Ref<HTMLElement | null>) {
     }
 
     scene.clear();
-    timer?.dispose?.();
 
     if (renderer && containerRef.value?.contains(renderer.domElement)) {
       containerRef.value.removeChild(renderer.domElement);
@@ -774,6 +904,7 @@ export function useCarIntro(containerRef: Ref<HTMLElement | null>) {
   }
 
   onBeforeUnmount(() => {
+    carIntroCancelled = true;
     shutdownIntroWebGL();
   });
 

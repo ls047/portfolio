@@ -195,8 +195,8 @@ export const cvData: CvData = {
     { name: 'English', level: 'Professional' },
   ],
   links: [
-    { label: 'LinkedIn', url: 'https://linkedin.com/in/profile/' },
+    { label: 'LinkedIn', url: 'https://www.linkedin.com/in/ali-k-al-ibadi-33b303286/' },
     { label: 'GitHub', url: 'https://github.com/ls047' },
-    { label: 'Portfolio', url: 'https://ali-khalil.dev' },
+    { label: 'Portfolio', url: 'https://portfolio-ochre-delta-0r0pbd6epz.vercel.app/' },
   ],
 };
