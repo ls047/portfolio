@@ -52,10 +52,10 @@ export const appConfig: AppConfig = {
   },
 
   typography: {
-    /* Faces loaded via @font-face in style.css (public/font/corsa-rustin-font/) */
+    /* Google Fonts linked in index.html */
     fonts: [],
     primary: {
-      family: 'Corsa Rustin',
+      family: 'Inter',
       fallbacks: [
         'system-ui',
         '-apple-system',
@@ -69,19 +69,12 @@ export const appConfig: AppConfig = {
       cssVariable: 'font-primary',
     },
     secondary: {
-      family: 'Corsa Rustin',
-      fallbacks: [
-        'system-ui',
-        '-apple-system',
-        'BlinkMacSystemFont',
-        'Segoe UI',
-        'Roboto',
-        'sans-serif',
-      ],
+      family: 'Orbitron',
+      fallbacks: ['system-ui', 'sans-serif'],
       cssVariable: 'font-secondary',
     },
     mono: {
-      family: 'Fira Code',
+      family: 'JetBrains Mono',
       fallbacks: ['Courier New', 'Courier', 'monospace'],
       cssVariable: 'font-mono',
     },

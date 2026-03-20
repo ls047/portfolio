@@ -10,53 +10,119 @@
     <div
       ref="contentOverlayRef"
       class="content-overlay content-scroll relative z-10"
-      :style="lightStyle"
+      :style="contentOverlayStyle"
     >
       <slot />
     </div>
 
-    <!-- Above scroll layer so grab cursor + drag work (full-width overlay was blocking hits) -->
-    <TireDecoration
-      :visible="tireVisible"
-      :content-opacity="contentOpacity"
+    <IntroNarrativeOverlay
+      :phase="introPhase"
+      :drift-progress="driftProgress"
+      :boot-lines-revealed="bootLinesRevealed"
     />
 
+    <SecurityCameraOverlay />
+
   </div>
+
+  <!-- Sibling of layout-container: not clipped by its overflow:hidden; WebGL can bleed left -->
+  <CameraDecoration :visible="cameraRailVisible" />
 </template>
 
 <script setup lang="ts">
-import { ref, provide, watch, computed } from 'vue';
+import { ref, provide, watch, computed, nextTick, onMounted, onBeforeUnmount } from 'vue';
 import { useCarIntro } from '../composables/useCarIntro';
-import { useScrollAmbientAudio } from '../composables/useScrollAmbientAudio';
-import TireDecoration from '../components/TireDecoration.vue';
-
+import { useReadingContrast } from '../composables/useReadingContrast';
+import { useScrollBackgroundAudio } from '../composables/useScrollBackgroundAudio';
+import { getLightCenterPx } from '../utils/readingLight';
+import {
+  readingLightSweepPhase,
+  READING_LIGHT_SWEEP_SPEED_RAD_S,
+} from '../utils/readingLightSweep';
+import CameraDecoration from '../components/CameraDecoration.vue';
+import IntroNarrativeOverlay from '../components/IntroNarrativeOverlay.vue';
+import SecurityCameraOverlay from '../components/SecurityCameraOverlay.vue';
 const canvasContainer = ref<HTMLElement | null>(null);
 const contentOverlayRef = ref<HTMLElement | null>(null);
 
-const { contentOpacity } = useCarIntro(canvasContainer);
+const { contentOpacity, introPhase, driftProgress, bootLinesRevealed } = useCarIntro(canvasContainer);
+const { forceReadingUpdate } = useReadingContrast(contentOverlayRef);
+const contentReadyForAudio = computed(() => contentOpacity.value >= 1);
+useScrollBackgroundAudio(contentOverlayRef, { ready: contentReadyForAudio });
 
-const contentRevealed = computed(() => contentOpacity.value >= 1);
-useScrollAmbientAudio(contentOverlayRef, contentRevealed);
+/** Full section theme + per-word ink (scroll does this; ink-only pokes miss theme + wrong rects mid-animation). */
+function pokeReadingVisualSync() {
+  forceReadingUpdate();
+}
 
 provide('scrollContainerRef', contentOverlayRef);
+provide('pokeReadingVisualSync', pokeReadingVisualSync);
 
-const lightStyle = computed(() => ({
-  opacity: contentOpacity.value,
-}));
+/** Radial spotlight center (px) follows same sweep as `getLightCenterPx` + CCTV aim. */
+const contentOverlayStyle = computed(() => {
+  readingLightSweepPhase.value;
+  const o = contentOpacity.value;
+  if (typeof window === 'undefined') {
+    return { opacity: o };
+  }
+  const w = window.innerWidth;
+  const h = window.innerHeight;
+  const { x, y } = getLightCenterPx(w, h);
+  return {
+    opacity: o,
+    '--reading-light-x': `${x}px`,
+    '--reading-light-y': `${y}px`,
+  };
+});
 
-const tireVisible = ref(false);
+const readingLightSweepEnabled = computed(() => contentOpacity.value >= 1);
+
+let readingSweepRaf = 0;
+let readingSweepLastT = 0;
+let readingSweepLastInkPoke = 0;
+
+function readingLightSweepFrame(time: number) {
+  readingSweepRaf = requestAnimationFrame(readingLightSweepFrame);
+  if (!readingLightSweepEnabled.value) {
+    readingSweepLastT = 0;
+    return;
+  }
+  if (
+    typeof window !== 'undefined' &&
+    window.matchMedia('(prefers-reduced-motion: reduce)').matches
+  ) {
+    return;
+  }
+  if (readingSweepLastT === 0) readingSweepLastT = time;
+  const dt = Math.min(0.05, (time - readingSweepLastT) / 1000);
+  readingSweepLastT = time;
+  readingLightSweepPhase.value += READING_LIGHT_SWEEP_SPEED_RAD_S * dt;
+
+  if (time - readingSweepLastInkPoke >= 280) {
+    readingSweepLastInkPoke = time;
+    forceReadingUpdate();
+  }
+}
+
+onMounted(() => {
+  readingSweepRaf = requestAnimationFrame(readingLightSweepFrame);
+});
+
+onBeforeUnmount(() => {
+  cancelAnimationFrame(readingSweepRaf);
+});
+
+const cameraRailVisible = ref(false);
 
 watch(contentOpacity, (opacity) => {
   if (opacity >= 1) {
-    const t = setTimeout(() => {
-      tireVisible.value = true;
-    }, 800);
-    return () => {
-      clearTimeout(t);
-      tireVisible.value = false;
-    };
+    void nextTick(() => {
+      requestAnimationFrame(() => forceReadingUpdate());
+    });
+    cameraRailVisible.value = true;
+  } else {
+    cameraRailVisible.value = false;
   }
-  tireVisible.value = false;
 }, { immediate: true });
 </script>
 
@@ -71,26 +137,40 @@ watch(contentOpacity, (opacity) => {
   min-height: 100vh;
   overflow: hidden;
   transition: opacity 0.8s ease-out;
-  /* Large centered wash — most of the viewport cream; vignette in corners only */
-  --reading-light-x: 50%;
-  --reading-light-y: 48%;
+  /* Defaults until useReadingContrast sets per-section vars (black / white only) */
+  --section-heading: #000000;
+  --section-body: #000000;
+  --section-muted: #000000;
+  --section-subtle: #000000;
+  --section-link: #000000;
+  --section-link-hover: #000000;
+  --section-divider: rgba(0, 0, 0, 0.14);
+  --section-chip-bg: rgba(0, 0, 0, 0.08);
+  --section-chip-text: #000000;
+  /* Desktop: left mirror of right camera strip — sync with readingLight.getLightCenterPx */
+  --reading-light-x: min(13vw, 185px);
+  --reading-light-y: 50%;
+  /* White spotlight → black vignette; neutral mid grays only */
   background: radial-gradient(
-    ellipse 118% 112% at var(--reading-light-x) var(--reading-light-y),
-    #f7efde 0%,
-    #f2e8d6 32%,
-    #dfd0c0 52%,
-    #8a7d6f 74%,
-    #241f1c 90%,
+    circle at var(--reading-light-x) var(--reading-light-y),
+    #ffffff 0%,
+    #ffffff 10%,
+    #c8c8c8 19%,
+    #2a2a2a 33%,
+    #000000 44%,
     #000000 100%
   );
-  background-attachment: fixed;
+  /* `fixed` repaints against the viewport every scroll tick → jank + fuzzy text on many GPUs.
+   * `scroll` keeps the fill pinned to this scrollport (content still rolls over the radial). */
+  background-attachment: scroll;
   background-position: center;
 }
 
 @media (max-width: 1023px) {
   .content-overlay {
-    /* Same center; attachment follows scroll on compact viewports */
-    background-attachment: scroll;
+    /* Phones & tablets: glow low & near horizontal center; CCTV sits top-left */
+    --reading-light-x: 50%;
+    --reading-light-y: 86%;
   }
 }
 
@@ -107,31 +187,55 @@ watch(contentOpacity, (opacity) => {
   display: none;
 }
 
-/* Portfolio copy: static theme colors (no scroll / spotlight ink). */
-.content-overlay :deep(.reading-head) {
-  color: var(--color-text) !important;
-}
-.content-overlay :deep(.reading-body) {
-  color: var(--color-text) !important;
-}
-.content-overlay :deep(.reading-muted) {
-  color: var(--color-text-secondary) !important;
-}
-.content-overlay :deep(.reading-subtle) {
-  color: var(--color-text-secondary) !important;
-}
+/* Easing for section-driven colors (theme flip while scrolling) */
+.content-overlay :deep(.reading-head),
+.content-overlay :deep(.reading-body),
+.content-overlay :deep(.reading-muted),
+.content-overlay :deep(.reading-subtle),
 .content-overlay :deep(.reading-link) {
-  color: var(--color-link) !important;
+  transition: color 0.55s cubic-bezier(0.22, 1, 0.36, 1) !important;
 }
 .content-overlay :deep(.reading-link:hover) {
-  color: var(--color-link-hover) !important;
+  transition: color 0.35s cubic-bezier(0.22, 1, 0.36, 1) !important;
 }
 .content-overlay :deep(.reading-border) {
-  border-color: var(--color-border) !important;
+  transition:
+    border-color 0.55s cubic-bezier(0.22, 1, 0.36, 1),
+    box-shadow 0.55s cubic-bezier(0.22, 1, 0.36, 1) !important;
 }
 .content-overlay :deep(.reading-chip) {
-  background-color: var(--color-muted) !important;
-  color: var(--color-text) !important;
+  transition:
+    background-color 0.55s cubic-bezier(0.22, 1, 0.36, 1),
+    color 0.55s cubic-bezier(0.22, 1, 0.36, 1) !important;
+}
+
+/* Text on radial: black in the glow, white in the vignette — vars from .section */
+.content-overlay :deep(.reading-head) {
+  color: var(--section-heading) !important;
+  font-family: var(--font-display), var(--font-secondary), system-ui, sans-serif !important;
+  letter-spacing: 0.04em;
+}
+.content-overlay :deep(.reading-body) {
+  color: var(--section-body) !important;
+}
+.content-overlay :deep(.reading-muted) {
+  color: var(--section-muted) !important;
+}
+.content-overlay :deep(.reading-subtle) {
+  color: var(--section-subtle) !important;
+}
+.content-overlay :deep(.reading-link) {
+  color: var(--section-link) !important;
+}
+.content-overlay :deep(.reading-link:hover) {
+  color: var(--section-link-hover) !important;
+}
+.content-overlay :deep(.reading-border) {
+  border-color: var(--reading-border-sync, var(--section-divider)) !important;
+}
+.content-overlay :deep(.reading-chip) {
+  background-color: var(--section-chip-bg) !important;
+  color: var(--section-chip-text) !important;
 }
 
 .content-overlay :deep(.reading-chars-visual) {
@@ -140,14 +244,46 @@ watch(contentOpacity, (opacity) => {
   word-break: break-word;
 }
 
+/* Per-word ink — text-fill + caret (don’t apply text-fill on Iconify mask nodes; breaks currentColor). */
+.content-overlay :deep(.reading-word) {
+  color: var(--reading-ink-sync, #000000) !important;
+  -webkit-text-fill-color: var(--reading-ink-sync, #000000) !important;
+  caret-color: var(--reading-ink-sync, #000000);
+  transition-property: color, -webkit-text-fill-color, caret-color !important;
+  /* Long fades + scroll-driven `--reading-ink-sync` updates = mushy, “pixelated” text mid-scroll */
+  transition-duration: 0.12s !important;
+  transition-timing-function: cubic-bezier(0.22, 1, 0.36, 1) !important;
+}
+
+/*
+ * Put `.reading-icon` on a plain wrapper (no Vue :style) — AppIcon’s bound `fontSize` was clearing
+ * `--reading-ink-sync` from the same node on re-renders. Child uses Iconify mask → `currentColor` only.
+ */
 .content-overlay :deep(.reading-icon) {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  color: var(--color-text) !important;
+  color: var(--reading-ink-sync, #000000) !important;
+  transition-property: color !important;
+  transition-duration: 0.12s !important;
+  transition-timing-function: cubic-bezier(0.22, 1, 0.36, 1) !important;
 }
 
 .content-overlay :deep(.reading-icon > *) {
   color: inherit !important;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .content-overlay :deep(.reading-head),
+  .content-overlay :deep(.reading-body),
+  .content-overlay :deep(.reading-muted),
+  .content-overlay :deep(.reading-subtle),
+  .content-overlay :deep(.reading-link),
+  .content-overlay :deep(.reading-border),
+  .content-overlay :deep(.reading-icon),
+  .content-overlay :deep(.reading-chip),
+  .content-overlay :deep(.reading-word) {
+    transition-duration: 0.01ms !important;
+  }
 }
 </style>

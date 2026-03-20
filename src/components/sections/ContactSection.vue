@@ -1,5 +1,8 @@
 <template>
-  <section :class="sectionRootClass">
+  <section
+    :class="sectionRootClass"
+    data-reading-zone="contact"
+  >
     <div :class="sectionContentClass">
       <header class="contact-header">
         <h2
@@ -236,7 +239,7 @@ const mailtoHref = computed(() => {
     transform 0.2s ease,
     box-shadow 0.2s ease,
     background-color 0.2s ease;
-  background: color-mix(in srgb, var(--color-muted) 35%, transparent);
+  background: color-mix(in srgb, var(--section-chip-bg,f8f8f8) 35%, transparent);
 }
 
 .contact-card-copy {
@@ -257,13 +260,13 @@ const mailtoHref = computed(() => {
   justify-content: center;
   border-radius: 0.8rem;
   transition: background-color 0.2s ease, transform 0.2s ease;
-  background: color-mix(in srgb, var(--color-muted) 58%, transparent);
+  background: color-mix(in srgb, var(--section-chip-bg, rgba(0, 0, 0, 0.06)) 58%, transparent);
 }
 
 @media (hover: hover) and (pointer: fine) {
   .contact-card:hover .contact-card-icon-well {
     transform: scale(1.04);
-    background: color-mix(in srgb, var(--color-muted) 72%, transparent);
+    background: color-mix(in srgb, var(--section-chip-bg, rgba(0, 0, 0, 0.06)) 72%, transparent);
   }
 }
 
@@ -272,12 +275,12 @@ const mailtoHref = computed(() => {
     transform: translateY(-2px);
     box-shadow:
       0 12px 32px rgba(0, 0, 0, 0.08),
-      0 0 0 1px var(--color-border);
+      0 0 0 1px var(--reading-border-sync, var(--section-divider));
   }
 }
 
 .contact-card:focus-visible {
-  outline: 2px solid var(--color-link);
+  outline: 2px solid var(--section-link, #3b82f6);
   outline-offset: 3px;
 }
 
@@ -360,7 +363,7 @@ const mailtoHref = computed(() => {
     transform 0.2s ease,
     box-shadow 0.2s ease,
     background-color 0.2s ease;
-  background: color-mix(in srgb, var(--color-muted) 35%, transparent);
+  background: color-mix(in srgb, var(--section-chip-bg, rgba(0, 0, 0, 0.06)) 35%, transparent);
 }
 
 .contact-link-card-icon {
@@ -374,17 +377,17 @@ const mailtoHref = computed(() => {
     transform: translateY(-2px);
     box-shadow:
       0 10px 28px rgba(0, 0, 0, 0.07),
-      0 0 0 1px var(--color-border);
+      0 0 0 1px var(--reading-border-sync, var(--section-divider));
   }
 
   .contact-link-card:hover .contact-link-card-icon {
     transform: scale(1.05);
-    background: color-mix(in srgb, var(--color-muted) 72%, transparent);
+    background: color-mix(in srgb, var(--section-chip-bg, rgba(0, 0, 0, 0.06)) 72%, transparent);
   }
 }
 
 .contact-link-card:focus-visible {
-  outline: 2px solid var(--color-link);
+  outline: 2px solid var(--section-link, #3b82f6);
   outline-offset: 2px;
 }
 

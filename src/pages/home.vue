@@ -1,5 +1,5 @@
 <template>
-  <!-- Phone: narrow column; tablet: wider centered column + bottom tire safe area; lg+: full row beside side tire. -->
+  <!-- Phone: narrow column; tablet: wider centered column + bottom padding for low glow; lg+: full row beside right camera. -->
   <div
     class="home-page min-h-screen min-w-0 py-[clamp(1.25rem,4vh,4rem)] max-md:px-[clamp(0.875rem,5vw,1.25rem)] max-md:pb-[max(6.5rem,min(40vh,17rem))] md:max-lg:ps-[clamp(1rem,4vw,1.75rem)] md:max-lg:pe-[max(0px,calc(clamp(1rem,4vw,1.75rem)-24px))] md:max-lg:pb-[max(5.5rem,min(32vh,15rem))] sm:py-[clamp(2rem,6vh,4rem)]"
   >

@@ -167,9 +167,11 @@ const paddedPercent = computed(() =>
 
 .game-loader-name {
   margin: 0;
+  font-family: var(--font-display), var(--font-secondary), system-ui, sans-serif;
   font-size: clamp(1.35rem, 4.5vw, 1.65rem);
   font-weight: 600;
-  letter-spacing: -0.02em;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
   color: #fafafa;
   line-height: 1.2;
 }
@@ -251,7 +253,7 @@ const paddedPercent = computed(() =>
   align-items: baseline;
   justify-content: center;
   gap: 0.15rem;
-  font-family: ui-monospace, 'SF Mono', Menlo, Monaco, Consolas, monospace;
+  font-family: var(--font-mono), ui-monospace, 'SF Mono', Menlo, Monaco, Consolas, monospace;
 }
 
 .game-loader-pct-value {

@@ -1,8 +1,10 @@
-import { ref, onMounted, onBeforeUnmount, type Ref } from 'vue';
+import { ref, onMounted, onBeforeUnmount, watch, nextTick, type Ref } from 'vue';
+import { siteSoundMuted } from './siteSound';
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 
 import carModelUrl from '@/assets/1987_buick_grand_national_regal_gnx.glb?url';
+import { preloadCctvGlb } from '@/utils/preloadCctvGlb';
 import skidSfxUrl from '@/audio/ES_Car, Skid To Stop, Tire Squeal - Epidemic Sound.mp3';
 import lampFlickerSfxUrl from '@/audio/freesound_community-fluorescent-lamp-flickering-17625.mp3';
 const CAR_MODEL_URL = carModelUrl;
@@ -13,15 +15,17 @@ const DRIFT_START = 1.0; // straight-line drive duration (s); drift begins when 
 const DRIVE_END_Z = -2;
 /** Start closer to camera so the car fills the lower frame and motion reads from frame 0. */
 const DRIVE_START_Z = -8.85;
-const DRIFT_DURATION = 1.5;
+const DRIFT_DURATION = 2.85;
 /** When within drift phase, play once `p` (0=start…1=end of drift) reaches this — easy to tune; ~0.004 ≈ first 6ms. */
 const SKID_SFX_AT_P = 0.004;
 /** Skip silent lead-in in the MP3 (seconds). Only set if the clip has dead air and still sounds late after lowering `SKID_SFX_AT_P`. */
 const SKID_SFX_TRIM_START_SEC = 0;
 const LIGHT_FLASH_DURATION = 2.0;
-const LIGHT_FLOOD_DURATION = 1.2; // circular light expands to fill screen when 3rd flash hits
-const LIGHT_FLOOD_START = DRIFT_START + DRIFT_DURATION + (2 / 3) * LIGHT_FLASH_DURATION; // flood starts on 3rd flash
-const TOTAL_INTRO = DRIFT_START + DRIFT_DURATION + LIGHT_FLASH_DURATION; // content reveal after 3 flashes
+const LIGHT_FLOOD_DURATION = 1.2; // circular light expands after boot work finishes
+const INTRO_BOOT_LOAD_TIMEOUT_MS = 25000;
+
+/** Drives HTML overlay: drift → “code in smoke”, headlights loop until real boot work finishes → flood. */
+export type CarIntroPhase = 'idle' | 'drive' | 'drift' | 'boot' | 'done';
 
 // Skid marks offset from arc center (1.25, 0.75) - applied directly to mesh world positions
 const SKID_OFFSET_X = 1.0;
@@ -34,12 +38,38 @@ function waitForPageLoaded(): Promise<void> {
   });
 }
 
+function fontsReadyLocal(): Promise<void> {
+  if (typeof document === 'undefined' || !document.fonts?.ready) {
+    return Promise.resolve();
+  }
+  return document.fonts.ready.then(() => undefined).catch(() => undefined);
+}
+
+function doubleRaf(): Promise<void> {
+  return new Promise((resolve) => {
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => resolve());
+    });
+  });
+}
+
 export function useCarIntro(containerRef: Ref<HTMLElement | null>) {
   const contentOpacity = ref(0);
+  const introPhase = ref<CarIntroPhase>('idle');
+  /** 0…1 during drift only (for “code through smoke” overlay opacity). */
+  const driftProgress = ref(0);
+  /** Boot log lines revealed (0…3) — driven by real preload steps, not fixed headlight cycles. */
+  const bootLinesRevealed = ref(0);
+  /** CCTV/fonts/layout ready; headlight loop stops and flood + content reveal run. */
+  const introContentReady = ref(false);
 
   /** If WebGL or GLB fails (common on strict mobile / privacy modes), still show the page. */
   function revealContentFallback() {
     contentOpacity.value = 1;
+    introPhase.value = 'done';
+    driftProgress.value = 0;
+    bootLinesRevealed.value = 3;
+    introContentReady.value = true;
   }
 
   let scene: THREE.Scene;
@@ -72,8 +102,8 @@ export function useCarIntro(containerRef: Ref<HTMLElement | null>) {
 
   /** Procedural asphalt + lane markings (matches PlaneGeometry UVs: U ≈ world X, V ≈ world Z). */
   function createRoadTexture(): THREE.CanvasTexture {
-    const w = 1024;
-    const h = 768;
+    const w = 512;
+    const h = 384;
     const canvas = document.createElement('canvas');
     canvas.width = w;
     canvas.height = h;
@@ -154,7 +184,7 @@ export function useCarIntro(containerRef: Ref<HTMLElement | null>) {
     const trackWidth = 0.11;
     const trackLength = 0.18;
     const tireSpacing = 0.48;
-    const numSegments = 52;
+    const numSegments = 28;
 
     for (let side = -1; side <= 1; side += 2) {
       const offsetX = side * tireSpacing * 0.5;
@@ -262,7 +292,7 @@ export function useCarIntro(containerRef: Ref<HTMLElement | null>) {
       [-0.35 * scale, 0.4 * scale, -offset - nudge, false],
     ];
     for (const [x, y, z, isFront] of positions) {
-      const geo = new THREE.CircleGeometry(lensRadius, 24);
+      const geo = new THREE.CircleGeometry(lensRadius, 12);
       const mat = new THREE.MeshBasicMaterial({
         color: headlightWarm,
         transparent: true,
@@ -294,11 +324,16 @@ export function useCarIntro(containerRef: Ref<HTMLElement | null>) {
       const mat = mesh.material;
       if (!mat) return;
       const mats = Array.isArray(mat) ? mat : [mat];
-      mats.forEach((m) => {
-        const mm = m as THREE.MeshStandardMaterial;
-        if (mm.map) mm.map.dispose();
+      for (const m of mats) {
+        const rec = m as unknown as Record<string, unknown>;
+        for (const key of Object.keys(rec)) {
+          const v = rec[key];
+          if (v && typeof v === 'object' && 'isTexture' in v && (v as THREE.Texture).isTexture) {
+            (v as THREE.Texture).dispose();
+          }
+        }
         m.dispose();
-      });
+      }
     });
   }
 
@@ -320,6 +355,7 @@ export function useCarIntro(containerRef: Ref<HTMLElement | null>) {
 
   function playSkidSfxOnce() {
     if (skidSfxPlayed) return;
+    if (siteSoundMuted.value) return;
     skidSfxPlayed = true;
     try {
       const a = skidSfxPreload ?? new Audio(skidSfxUrl);
@@ -362,6 +398,7 @@ export function useCarIntro(containerRef: Ref<HTMLElement | null>) {
 
   function playLampFlickerClipOnce() {
     if (lampFlickerStarted) return;
+    if (siteSoundMuted.value) return;
     lampFlickerStarted = true;
     if (lampFlickerClipTimer) {
       clearTimeout(lampFlickerClipTimer);
@@ -396,6 +433,13 @@ export function useCarIntro(containerRef: Ref<HTMLElement | null>) {
     lampFlickerAudio = null;
   }
 
+  watch(siteSoundMuted, (muted) => {
+    if (muted) {
+      stopSkidSfx();
+      stopLampFlicker();
+    }
+  });
+
   onMounted(() => {
     if (!containerRef.value) return;
 
@@ -420,7 +464,7 @@ export function useCarIntro(containerRef: Ref<HTMLElement | null>) {
         camera.lookAt(0, 0, 2);
 
         renderer = new THREE.WebGLRenderer({
-          antialias: true,
+          antialias: false,
           powerPreference: 'low-power',
           stencil: false,
           depth: true,
@@ -431,7 +475,8 @@ export function useCarIntro(containerRef: Ref<HTMLElement | null>) {
       }
 
       renderer.setSize(containerRef.value.clientWidth, containerRef.value.clientHeight);
-    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.75));
+    /* Caps GPU color/depth allocation during intro; full-bleed canvas is largest WebGL surface. */
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio ?? 1, 1));
     renderer.outputColorSpace = THREE.SRGBColorSpace;
     renderer.toneMapping = THREE.ACESFilmicToneMapping;
     renderer.toneMappingExposure = 1.2;
@@ -446,7 +491,7 @@ export function useCarIntro(containerRef: Ref<HTMLElement | null>) {
 
     const groundGeo = new THREE.PlaneGeometry(60, 40);
     groundRoadTexture = createRoadTexture();
-    groundRoadTexture.anisotropy = Math.min(8, renderer.capabilities.getMaxAnisotropy());
+    groundRoadTexture.anisotropy = Math.min(2, renderer.capabilities.getMaxAnisotropy());
     const groundMat = new THREE.MeshStandardMaterial({
       map: groundRoadTexture,
       color: 0xffffff,
@@ -493,7 +538,7 @@ export function useCarIntro(containerRef: Ref<HTMLElement | null>) {
     overlayCtx.fillStyle = overlayGrad;
     overlayCtx.fillRect(0, 0, 64, 64);
     overlayTex = new THREE.CanvasTexture(overlayCanvas);
-    overlayGeo = new THREE.CircleGeometry(0.55, 32);
+    overlayGeo = new THREE.CircleGeometry(0.55, 16);
     for (const x of [2.15, 2.85]) {
       const mat = new THREE.MeshBasicMaterial({
         map: overlayTex,
@@ -528,7 +573,7 @@ export function useCarIntro(containerRef: Ref<HTMLElement | null>) {
     floodCtx.fillStyle = floodGrad;
     floodCtx.fillRect(0, 0, 128, 128);
     const floodTex = new THREE.CanvasTexture(floodCanvas);
-    const floodGeo = new THREE.CircleGeometry(1, 32);
+    const floodGeo = new THREE.CircleGeometry(1, 16);
     const floodMat = new THREE.MeshBasicMaterial({
       map: floodTex,
       transparent: true,
@@ -546,6 +591,32 @@ export function useCarIntro(containerRef: Ref<HTMLElement | null>) {
     scene.add(lightFloodMesh);
 
       let introT0 = -1;
+      let bootLoadStarted = false;
+      let tRevealAnchor = -1;
+
+      async function runIntroBootLoad() {
+        const timeout = new Promise<void>((r) => setTimeout(r, INTRO_BOOT_LOAD_TIMEOUT_MS));
+        try {
+          await Promise.race([
+            (async () => {
+              await nextTick();
+              if (carIntroCancelled) return;
+              bootLinesRevealed.value = 1;
+              await preloadCctvGlb();
+              if (carIntroCancelled) return;
+              bootLinesRevealed.value = 2;
+              await fontsReadyLocal();
+              if (carIntroCancelled) return;
+              bootLinesRevealed.value = 3;
+              await doubleRaf();
+            })(),
+            timeout,
+          ]);
+        } catch {
+          /* allow reveal */
+        }
+        if (!carIntroCancelled) introContentReady.value = true;
+      }
 
       const loader = new GLTFLoader();
       try {
@@ -619,6 +690,10 @@ export function useCarIntro(containerRef: Ref<HTMLElement | null>) {
           skidMarksGroup.visible = false;
           smokeGroup.visible = false;
         } else if (t < DRIFT_START + DRIFT_DURATION) {
+          if (!bootLoadStarted) {
+            bootLoadStarted = true;
+            void runIntroBootLoad();
+          }
           const p = (t - DRIFT_START) / DRIFT_DURATION;
           // Drift while going up: from (0,-2) to (2.5,3.5) - rear kicks out, car moves forward
           const rotationProgress = 1 - Math.pow(1 - p, 0.4);
@@ -668,8 +743,7 @@ export function useCarIntro(containerRef: Ref<HTMLElement | null>) {
             m.position.y = m.userData.baseY + Math.sin(t * 2.5 + m.userData.phase) * m.userData.riseSpeed;
             m.position.x = Math.sin(t * 1.8 + m.userData.phase * 2) * m.userData.spread * driftProgress;
           });
-        } else if (t < TOTAL_INTRO) {
-          playLampFlickerClipOnce();
+        } else if (!introContentReady.value) {
           car.position.set(2.5, 0, 3.5);
           car.rotation.y = Math.PI;
           skidMarksGroup.visible = true;
@@ -679,10 +753,10 @@ export function useCarIntro(containerRef: Ref<HTMLElement | null>) {
           smokeGroup.visible = false;
 
           const flashPhase = t - DRIFT_START - DRIFT_DURATION;
+          const loopPhase = flashPhase % LIGHT_FLASH_DURATION;
           const cycleDuration = LIGHT_FLASH_DURATION / 3;
-          const cycleIndex = Math.floor(flashPhase / cycleDuration);
-          const cycleProgress = (flashPhase % cycleDuration) / cycleDuration;
-          // 3 attempts: 1st & 2nd fade in/out; 3rd = success, full intensity + flood starts
+          const cycleIndex = Math.floor(loopPhase / cycleDuration);
+          const cycleProgress = (loopPhase % cycleDuration) / cycleDuration;
           const fade = cycleProgress < 0.35
             ? cycleProgress / 0.35
             : cycleProgress < 0.5
@@ -692,61 +766,26 @@ export function useCarIntro(containerRef: Ref<HTMLElement | null>) {
           const fullIntensity = 60;
           const intensity = cycleIndex < 2 ? fade * attemptPeak : fullIntensity;
           setAllLights(intensity);
-
-          // Flood starts on 3rd flash (cycleIndex >= 2)
-          if (t >= LIGHT_FLOOD_START && lightFloodMesh) {
-            const floodPhase = t - LIGHT_FLOOD_START;
-            if (floodPhase < LIGHT_FLOOD_DURATION) {
-              lightFloodMesh.visible = true;
-              const p = floodPhase / LIGHT_FLOOD_DURATION;
-              const eased = 1 - Math.pow(1 - p, 0.7);
-              lightFloodMesh.scale.setScalar(eased * 25);
-              const fadeOut = 1 - eased;
-              const skidMarksFadeOut = Math.max(0, 1 - eased * 1.4); // disappear sooner
-              headlightOverlays.forEach((mat) => { mat.opacity = fadeOut; });
-              (skidMarksGroup.children as THREE.Mesh[]).forEach((m) => {
-                (m.material as THREE.MeshBasicMaterial).opacity = 0.85 * skidMarksFadeOut;
-              });
-              car.traverse((child) => {
-                if (child instanceof THREE.Mesh && child.material) {
-                  const mats = Array.isArray(child.material) ? child.material : [child.material];
-                  mats.forEach((mat) => {
-                    if ('opacity' in mat) (mat as THREE.MeshStandardMaterial).opacity = fadeOut;
-                  });
-                }
-              });
-            } else {
-              lightFloodMesh.visible = true;
-              lightFloodMesh.scale.setScalar(25);
-              headlightOverlays.forEach((mat) => { mat.opacity = 0; });
-              (skidMarksGroup.children as THREE.Mesh[]).forEach((m) => {
-                (m.material as THREE.MeshBasicMaterial).opacity = 0;
-              });
-              car.traverse((child) => {
-                if (child instanceof THREE.Mesh && child.material && 'opacity' in child.material) {
-                  (child.material as THREE.MeshStandardMaterial).opacity = 0;
-                }
-              });
-            }
-          }
         } else {
+          if (tRevealAnchor < 0) {
+            tRevealAnchor = t;
+            playLampFlickerClipOnce();
+          }
           car.position.set(2.5, 0, 3.5);
           car.rotation.y = Math.PI;
           setAllLights(60);
           skidMarksGroup.visible = true;
           smokeGroup.visible = false;
 
-          // Flood continues (started on 3rd flash at LIGHT_FLOOD_START)
-          const floodPhase = t - LIGHT_FLOOD_START;
-          if (lightFloodMesh && floodPhase < LIGHT_FLOOD_DURATION) {
+          const dt = t - tRevealAnchor;
+          if (lightFloodMesh && dt < LIGHT_FLOOD_DURATION) {
             lightFloodMesh.visible = true;
-            const p = floodPhase / LIGHT_FLOOD_DURATION;
-            const eased = 1 - Math.pow(1 - p, 0.7); // ease-out for smooth expansion
-            const maxRadius = 25; // large enough to cover view at any aspect
+            const p = dt / LIGHT_FLOOD_DURATION;
+            const eased = 1 - Math.pow(1 - p, 0.7);
+            const maxRadius = 25;
             lightFloodMesh.scale.setScalar(eased * maxRadius);
-            // Fade out headlights, skid marks and car as the big one scales up
             const fadeOut = 1 - eased;
-            const skidMarksFadeOut = Math.max(0, 1 - eased * 1.4); // disappear sooner
+            const skidMarksFadeOut = Math.max(0, 1 - eased * 1.4);
             headlightOverlays.forEach((mat) => { mat.opacity = fadeOut; });
             (skidMarksGroup.children as THREE.Mesh[]).forEach((m) => {
               (m.material as THREE.MeshBasicMaterial).opacity = 0.85 * skidMarksFadeOut;
@@ -759,8 +798,7 @@ export function useCarIntro(containerRef: Ref<HTMLElement | null>) {
                 });
               }
             });
-          } else if (!lightFloodMesh || floodPhase >= LIGHT_FLOOD_DURATION) {
-            // Flood finished (or no flood mesh) — tear down entire intro WebGL so road/car/GPU don't linger
+          } else if (!lightFloodMesh || dt >= LIGHT_FLOOD_DURATION) {
             if (lightFloodMesh) {
               lightFloodMesh.visible = true;
               lightFloodMesh.scale.setScalar(25);
@@ -779,7 +817,28 @@ export function useCarIntro(containerRef: Ref<HTMLElement | null>) {
           }
         }
 
-        const isRevealed = t >= TOTAL_INTRO; // whole content appears after 3 light flashes end
+        const floodDone =
+          introContentReady.value &&
+          tRevealAnchor >= 0 &&
+          t - tRevealAnchor >= LIGHT_FLOOD_DURATION;
+        const isRevealed = floodDone;
+
+        if (t < DRIFT_START) {
+          introPhase.value = 'drive';
+          driftProgress.value = 0;
+        } else if (t < DRIFT_START + DRIFT_DURATION) {
+          introPhase.value = 'drift';
+          driftProgress.value = (t - DRIFT_START) / DRIFT_DURATION;
+        } else if (
+          !introContentReady.value ||
+          (tRevealAnchor >= 0 && t - tRevealAnchor < LIGHT_FLOOD_DURATION)
+        ) {
+          introPhase.value = 'boot';
+          driftProgress.value = 0;
+        } else {
+          introPhase.value = 'done';
+          driftProgress.value = 0;
+        }
         contentOpacity.value = isRevealed ? 1 : 0;
       }
 
@@ -845,7 +904,13 @@ export function useCarIntro(containerRef: Ref<HTMLElement | null>) {
     if (renderer && containerRef.value?.contains(renderer.domElement)) {
       containerRef.value.removeChild(renderer.domElement);
     }
-    renderer?.dispose();
+    if (renderer) {
+      const canvas = renderer.domElement;
+      const gl = canvas.getContext('webgl2') ?? canvas.getContext('webgl');
+      renderer.dispose();
+      const lose = gl?.getExtension?.('WEBGL_lose_context') as { loseContext: () => void } | undefined;
+      lose?.loseContext();
+    }
     renderer = null as unknown as THREE.WebGLRenderer;
     // Drop refs so car / road / scene graphs can't linger in JS memory
     scene = undefined as unknown as THREE.Scene;
@@ -865,11 +930,16 @@ export function useCarIntro(containerRef: Ref<HTMLElement | null>) {
         const mat = mesh.material;
         if (mat) {
           const mats = Array.isArray(mat) ? mat : [mat];
-          mats.forEach((m) => {
-            const tex = (m as THREE.MeshStandardMaterial).map;
-            if (tex) tex.dispose();
+          for (const m of mats) {
+            const rec = m as unknown as Record<string, unknown>;
+            for (const key of Object.keys(rec)) {
+              const v = rec[key];
+              if (v && typeof v === 'object' && 'isTexture' in v && (v as THREE.Texture).isTexture) {
+                (v as THREE.Texture).dispose();
+              }
+            }
             m.dispose();
-          });
+          }
         }
       });
       car = null;
@@ -920,5 +990,5 @@ export function useCarIntro(containerRef: Ref<HTMLElement | null>) {
     shutdownIntroWebGL();
   });
 
-  return { contentOpacity };
+  return { contentOpacity, introPhase, driftProgress, bootLinesRevealed };
 }

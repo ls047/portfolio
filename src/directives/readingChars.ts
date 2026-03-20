@@ -1,4 +1,5 @@
 import type { DirectiveBinding, ObjectDirective } from 'vue';
+import { syncReadingVisualInks } from '../utils/syncReadingVisualInks';
 
 /** After mount, `el.textContent` is not reliable (sr-only + visual). */
 const lastFullText = new WeakMap<HTMLElement, string>();
@@ -21,7 +22,7 @@ function resolveFullText(
   return lastFullText.get(el) ?? '';
 }
 
-/** Whitespace (incl. newlines) stays as text nodes; words are plain spans (color inherits). */
+/** Whitespace (incl. newlines) stays as text nodes; words get `.reading-word` for ink sync. */
 function appendVisualTokens(wrap: HTMLElement, fullText: string): void {
   const normalized = fullText.replace(/\r/g, '');
   const tokens = normalized.split(/(\s+)/);
@@ -33,6 +34,7 @@ function appendVisualTokens(wrap: HTMLElement, fullText: string): void {
       continue;
     }
     const span = document.createElement('span');
+    span.className = 'reading-word';
     span.textContent = token;
     wrap.appendChild(span);
   }
@@ -57,6 +59,14 @@ function rebuild(el: HTMLElement, fullText: string): void {
   appendVisualTokens(wrap, fullText);
 
   el.appendChild(wrap);
+
+  requestAnimationFrame(() => {
+    const scrollRoot = el.closest('.content-scroll') as HTMLElement | null;
+    if (scrollRoot) {
+      syncReadingVisualInks(scrollRoot);
+      requestAnimationFrame(() => syncReadingVisualInks(scrollRoot));
+    }
+  });
 }
 
 export const readingChars: ObjectDirective<HTMLElement, string | undefined> = {
