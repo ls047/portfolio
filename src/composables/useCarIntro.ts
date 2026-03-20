@@ -37,6 +37,11 @@ function waitForPageLoaded(): Promise<void> {
 export function useCarIntro(containerRef: Ref<HTMLElement | null>) {
   const contentOpacity = ref(0);
 
+  /** If WebGL or GLB fails (common on strict mobile / privacy modes), still show the page. */
+  function revealContentFallback() {
+    contentOpacity.value = 1;
+  }
+
   let scene: THREE.Scene;
   let camera: THREE.PerspectiveCamera;
   let renderer: THREE.WebGLRenderer;
@@ -400,26 +405,32 @@ export function useCarIntro(containerRef: Ref<HTMLElement | null>) {
 
       void fetch(CAR_MODEL_URL, { mode: 'cors', credentials: 'same-origin' }).catch(() => {});
 
-      scene = new THREE.Scene();
-    introWebglReady = true;
-    scene.background = new THREE.Color(0x2a2a2a);
+      try {
+        scene = new THREE.Scene();
+        introWebglReady = true;
+        scene.background = new THREE.Color(0x2a2a2a);
 
-    camera = new THREE.PerspectiveCamera(
-      50,
-      containerRef.value.clientWidth / containerRef.value.clientHeight,
-      0.1,
-      1000,
-    );
-    camera.position.set(0, 1.5, -10);
-    camera.lookAt(0, 0, 2);
+        camera = new THREE.PerspectiveCamera(
+          50,
+          containerRef.value.clientWidth / containerRef.value.clientHeight,
+          0.1,
+          1000,
+        );
+        camera.position.set(0, 1.5, -10);
+        camera.lookAt(0, 0, 2);
 
-    renderer = new THREE.WebGLRenderer({
-      antialias: true,
-      powerPreference: 'low-power',
-      stencil: false,
-      depth: true,
-    });
-    renderer.setSize(containerRef.value.clientWidth, containerRef.value.clientHeight);
+        renderer = new THREE.WebGLRenderer({
+          antialias: true,
+          powerPreference: 'low-power',
+          stencil: false,
+          depth: true,
+        });
+      } catch {
+        revealContentFallback();
+        return;
+      }
+
+      renderer.setSize(containerRef.value.clientWidth, containerRef.value.clientHeight);
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.75));
     renderer.outputColorSpace = THREE.SRGBColorSpace;
     renderer.toneMapping = THREE.ACESFilmicToneMapping;
@@ -579,6 +590,7 @@ export function useCarIntro(containerRef: Ref<HTMLElement | null>) {
       } catch (err) {
         console.error('Error loading car:', err);
         shutdownIntroWebGL();
+        revealContentFallback();
       }
 
     function setAllLights(intensity: number) {
