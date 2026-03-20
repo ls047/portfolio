@@ -345,7 +345,7 @@ export function useCarIntro(containerRef: Ref<HTMLElement | null>) {
     if (skidSfxPreload) return;
     try {
       const a = new Audio(skidSfxUrl);
-      a.preload = 'auto';
+      a.preload = 'metadata';
       void a.load();
       skidSfxPreload = a;
     } catch {
@@ -405,10 +405,16 @@ export function useCarIntro(containerRef: Ref<HTMLElement | null>) {
       lampFlickerClipTimer = null;
     }
     try {
-      lampFlickerAudio = new Audio(lampFlickerSfxUrl);
+      lampFlickerAudio = new Audio();
+      lampFlickerAudio.preload = 'none';
+      lampFlickerAudio.src = lampFlickerSfxUrl;
       lampFlickerAudio.volume = 0.5;
       lampFlickerAudio.currentTime = 0;
-      void lampFlickerAudio.play().catch(() => {});
+      const playLamp = () => {
+        void lampFlickerAudio?.play().catch(() => {});
+      };
+      if (lampFlickerAudio.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA) playLamp();
+      else lampFlickerAudio.addEventListener('canplay', playLamp, { once: true });
       lampFlickerClipTimer = window.setTimeout(() => {
         lampFlickerClipTimer = null;
         if (lampFlickerAudio) {

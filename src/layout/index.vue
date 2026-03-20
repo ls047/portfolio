@@ -30,7 +30,16 @@
 </template>
 
 <script setup lang="ts">
-import { ref, provide, watch, computed, nextTick, onMounted, onBeforeUnmount } from 'vue';
+import {
+  ref,
+  provide,
+  watch,
+  computed,
+  nextTick,
+  onMounted,
+  onBeforeUnmount,
+  defineAsyncComponent,
+} from 'vue';
 import { useCarIntro } from '../composables/useCarIntro';
 import { useReadingContrast } from '../composables/useReadingContrast';
 import { useScrollBackgroundAudio } from '../composables/useScrollBackgroundAudio';
@@ -39,7 +48,8 @@ import {
   readingLightSweepPhase,
   READING_LIGHT_SWEEP_SPEED_RAD_S,
 } from '../utils/readingLightSweep';
-import CameraDecoration from '../components/CameraDecoration.vue';
+/** Own chunk: defers CCTV Three.js + GLTF path until layout mounts (after loader), trimming initial JS heap. */
+const CameraDecoration = defineAsyncComponent(() => import('../components/CameraDecoration.vue'));
 import IntroNarrativeOverlay from '../components/IntroNarrativeOverlay.vue';
 import SecurityCameraOverlay from '../components/SecurityCameraOverlay.vue';
 const canvasContainer = ref<HTMLElement | null>(null);

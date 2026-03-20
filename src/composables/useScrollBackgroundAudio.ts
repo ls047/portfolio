@@ -37,7 +37,8 @@ export function useScrollBackgroundAudio(scrollRef: Ref<HTMLElement | null>, opt
     if (ambient) return;
     ambient = new Audio(AMBIENT_SRC);
     ambient.loop = true;
-    ambient.preload = 'auto';
+    /* `metadata` avoids full decode until playback — lower RAM than `auto` while idle */
+    ambient.preload = 'metadata';
     ambient.volume = 0;
   }
 
@@ -46,7 +47,7 @@ export function useScrollBackgroundAudio(scrollRef: Ref<HTMLElement | null>, opt
     if (scrollSfx) return;
     scrollSfx = new Audio(SCROLL_SFX_SRC);
     scrollSfx.loop = true;
-    scrollSfx.preload = 'auto';
+    scrollSfx.preload = 'metadata';
     scrollSfx.volume = 0;
   }
 
