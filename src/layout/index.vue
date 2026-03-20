@@ -182,15 +182,32 @@ watch(contentOpacity, (opacity) => {
   word-break: break-word;
 }
 
-/* Per-word + per-icon ink from `syncReadingVisualInks` — same ramp, timing, and fallbacks */
-.content-overlay :deep(.reading-word),
-.content-overlay :deep(.reading-icon) {
+/* Per-word ink — text-fill + caret (don’t apply text-fill on Iconify mask nodes; breaks currentColor). */
+.content-overlay :deep(.reading-word) {
   color: var(--reading-ink-sync, #000000) !important;
   -webkit-text-fill-color: var(--reading-ink-sync, #000000) !important;
   caret-color: var(--reading-ink-sync, #000000);
   transition-property: color, -webkit-text-fill-color, caret-color !important;
   transition-duration: 0.6s !important;
   transition-timing-function: cubic-bezier(0.18, 0.88, 0.32, 1.02) !important;
+}
+
+/*
+ * Put `.reading-icon` on a plain wrapper (no Vue :style) — AppIcon’s bound `fontSize` was clearing
+ * `--reading-ink-sync` from the same node on re-renders. Child uses Iconify mask → `currentColor` only.
+ */
+.content-overlay :deep(.reading-icon) {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--reading-ink-sync, #000000) !important;
+  transition-property: color !important;
+  transition-duration: 0.6s !important;
+  transition-timing-function: cubic-bezier(0.18, 0.88, 0.32, 1.02) !important;
+}
+
+.content-overlay :deep(.reading-icon > *) {
+  color: inherit !important;
 }
 
 @media (prefers-reduced-motion: reduce) {

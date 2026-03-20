@@ -27,7 +27,8 @@ function applyReadingInkSync(el: HTMLElement, px: number, py: number): void {
 }
 
 /**
- * `.reading-word` + `.reading-icon`: same `readingInkAtPoint` + ink CSS (parity with text).
+ * `.reading-word` + `.reading-icon`: same `readingInkAtPoint`. Use `.reading-icon` on a wrapper
+ *  without Vue `:style` so `--reading-ink-sync` is not cleared when `AppIcon` updates `fontSize`.
  * `.reading-border`: border/stroke only (sample at element center).
  */
 export function syncReadingVisualInks(scrollRoot: HTMLElement): void {

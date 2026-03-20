@@ -26,11 +26,12 @@
               class="contact-card-icon-well"
               aria-hidden="true"
             >
-              <AppIcon
-                name="icon-[heroicons-outline--phone]"
-                :size="1.25"
-                class="reading-icon opacity-90"
-              />
+              <span class="reading-icon opacity-90">
+                <AppIcon
+                  name="icon-[heroicons-outline--phone]"
+                  :size="1.25"
+                />
+              </span>
             </span>
             <div class="contact-card-copy">
               <span
@@ -52,11 +53,12 @@
               class="contact-card-icon-well"
               aria-hidden="true"
             >
-              <AppIcon
-                name="icon-[heroicons-outline--envelope]"
-                :size="1.25"
-                class="reading-icon opacity-90"
-              />
+              <span class="reading-icon opacity-90">
+                <AppIcon
+                  name="icon-[heroicons-outline--envelope]"
+                  :size="1.25"
+                />
+              </span>
             </span>
             <div class="contact-card-copy">
               <span
@@ -128,22 +130,26 @@
                   class="contact-card-icon-well contact-link-card-icon"
                   aria-hidden="true"
                 >
-                  <AppIcon
-                    :name="iconForContactLink(link.url)"
-                    :size="1.2"
-                    class="reading-icon opacity-95"
-                  />
+                  <span class="reading-icon opacity-95">
+                    <AppIcon
+                      :name="iconForContactLink(link.url)"
+                      :size="1.2"
+                    />
+                  </span>
                 </span>
                 <span
                   class="contact-link-label font-medium"
                   v-reading-chars="link.label"
                 />
-                <AppIcon
-                  name="icon-[heroicons-outline--arrow-top-right-on-square]"
-                  :size="1"
-                  class="contact-link-external reading-icon shrink-0 opacity-55 transition-opacity group-hover:opacity-100"
+                <span
+                  class="contact-link-external reading-icon inline-flex shrink-0 opacity-55 transition-opacity group-hover:opacity-100"
                   aria-hidden="true"
-                />
+                >
+                  <AppIcon
+                    name="icon-[heroicons-outline--arrow-top-right-on-square]"
+                    :size="1"
+                  />
+                </span>
               </a>
             </li>
           </ul>
