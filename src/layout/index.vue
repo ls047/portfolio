@@ -116,6 +116,26 @@ watch(contentOpacity, (opacity) => {
   display: none;
 }
 
+/* Easing for section-driven colors (theme flip while scrolling) */
+.content-overlay :deep(.reading-head),
+.content-overlay :deep(.reading-body),
+.content-overlay :deep(.reading-muted),
+.content-overlay :deep(.reading-subtle),
+.content-overlay :deep(.reading-link) {
+  transition: color 0.55s cubic-bezier(0.22, 1, 0.36, 1) !important;
+}
+.content-overlay :deep(.reading-link:hover) {
+  transition: color 0.35s cubic-bezier(0.22, 1, 0.36, 1) !important;
+}
+.content-overlay :deep(.reading-border) {
+  transition: border-color 0.55s cubic-bezier(0.22, 1, 0.36, 1) !important;
+}
+.content-overlay :deep(.reading-chip) {
+  transition:
+    background-color 0.55s cubic-bezier(0.22, 1, 0.36, 1),
+    color 0.55s cubic-bezier(0.22, 1, 0.36, 1) !important;
+}
+
 /* Text on radial: black in the glow, white in the vignette — vars from .section */
 .content-overlay :deep(.reading-head) {
   color: var(--section-heading) !important;
@@ -149,11 +169,26 @@ watch(contentOpacity, (opacity) => {
   word-break: break-word;
 }
 
-/* Per-word ink from `syncReadingVisualInks` */
+/* Per-word ink from `syncReadingVisualInks` — var updates + transition = smooth drift */
 .content-overlay :deep(.reading-word) {
   color: var(--reading-ink-sync, #000000) !important;
   -webkit-text-fill-color: var(--reading-ink-sync, #000000) !important;
   caret-color: var(--reading-ink-sync, #000000);
-  transition: none !important;
+  transition-property: color, -webkit-text-fill-color, caret-color !important;
+  transition-duration: 0.6s !important;
+  transition-timing-function: cubic-bezier(0.18, 0.88, 0.32, 1.02) !important;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .content-overlay :deep(.reading-head),
+  .content-overlay :deep(.reading-body),
+  .content-overlay :deep(.reading-muted),
+  .content-overlay :deep(.reading-subtle),
+  .content-overlay :deep(.reading-link),
+  .content-overlay :deep(.reading-border),
+  .content-overlay :deep(.reading-chip),
+  .content-overlay :deep(.reading-word) {
+    transition-duration: 0.01ms !important;
+  }
 }
 </style>

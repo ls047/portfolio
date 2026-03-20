@@ -19,10 +19,8 @@ export function syncReadingVisualInks(scrollRoot: HTMLElement): void {
 
   for (const { el, px, py } of samples) {
     const ink = readingInkAtPoint(px, py);
+    /* Only CSS var — layout transitions color / fill from this */
     el.style.setProperty('--reading-ink-sync', ink);
-    el.style.setProperty('color', ink, 'important');
-    el.style.setProperty('-webkit-text-fill-color', ink, 'important');
-    el.style.setProperty('caret-color', ink);
     el.style.removeProperty('background-image');
     el.style.removeProperty('background-attachment');
     el.style.removeProperty('background-clip');

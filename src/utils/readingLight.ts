@@ -23,9 +23,26 @@ export function getLightCenterPx(viewportWidth: number, viewportHeight: number):
   return { x: stripHalf, y: viewportHeight * 0.5 };
 }
 
-/** Strict binary ink for reading / contrast helpers */
+/** Strict binary ink for contrast helpers / section chrome */
 export const READING_INK_ON_LIGHT = '#000000';
 export const READING_INK_ON_DARK = '#ffffff';
+
+function smoothstep01(edge0: number, edge1: number, x: number): number {
+  const t = Math.max(0, Math.min(1, (x - edge0) / (edge1 - edge0)));
+  return t * t * (3 - 2 * t);
+}
+
+/**
+ * Maps light strength → grayscale ink (white … grays … black).
+ * Wider overlap = smoother color change as text crosses glow ↔ vignette.
+ */
+export function readingInkMixFromStrength(s: number): string {
+  const lo = 0.12;
+  const hi = 0.46;
+  const t = smoothstep01(lo, hi, Math.max(0, Math.min(1, s)));
+  const v = Math.round(255 * (1 - t));
+  return `rgb(${v} ${v} ${v})`;
+}
 
 /**
  * ~1 = center of headlight (bright), ~0 = vignette (dark).
@@ -55,6 +72,7 @@ export function isOnLightBackground(px: number, py: number): boolean {
   return sampleLightStrength(px, py) > READING_LIGHT_THRESHOLD;
 }
 
+/** Per-pixel ink for reading chars — smooth ramp (not a hard flip). */
 export function readingInkAtPoint(px: number, py: number): string {
-  return isOnLightBackground(px, py) ? READING_INK_ON_LIGHT : READING_INK_ON_DARK;
+  return readingInkMixFromStrength(sampleLightStrength(px, py));
 }

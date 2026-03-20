@@ -25,6 +25,8 @@ export interface CvProject {
   name: string;
   description: string;
   tech: string[];
+  /** Optional screenshot or hero (URL or `/path` under `public/`). */
+  image?: string;
   link?: string;
 }
 
@@ -88,11 +90,13 @@ export const cvData: CvData = {
     period: 'Dec 2022 – 2026',
     description: 'Pursuing a degree in Computer Science, Business, and Information Management.',
   },
+  /** Add `image: '/images/your-file.png'` (under `public/images/`) or a full URL; omitted → placeholder. */
   projects: [
     {
       name: 'SuperHackathon Platform',
       description: 'Hackathon platform for SuperHackathon 2025. Includes contestants\' login, QR code generation, account creation, acceptance dashboard, questions, and integrated code editor (IDE).',
       tech: ['Vue.js', 'Tailwind CSS', 'WebSocket'],
+
     },
     {
       name: 'Nova Dev Sprint',
@@ -103,31 +107,44 @@ export const cvData: CvData = {
       name: 'Hashillo',
       description: 'Password management suite with features including QR code generation and a URL safety checker.',
       tech: ['Vue.js', 'Tailwind CSS'],
+      image: '/images/hashilo.png',
+      
     },
     {
       name: 'IQ Test System',
       description: 'Platform for managing IQ tests for the Ministry of Youth and Sports. Allows users to log in, create accounts, take tests, and view past and recent results.',
       tech: ['Vue.js', 'Tailwind CSS'],
+      image: '/images/iq-test.png',
     },
     {
       name: 'NASTYA DMS',
       description: 'Document management system managing archives and documents for organizations. Features archiving, classifying, search, preview, email sending, and download with details. Theme picker changes the whole system theme. 62 pages built with Vue.js and Tailwind CSS.',
       tech: ['Vue.js', 'Tailwind CSS'],
+      image: '/images/nastya-DMS.png',
     },
     {
       name: 'NASTYA FLOW',
       description: 'Workflow system managing Chartered accountants in the organization. Managers track customer orders across the organization from data entry to final Auditor before approval. Includes theme picker for system theming.',
       tech: ['Vue.js', 'Tailwind CSS'],
+      image: '/images/nastya-flow.png',
     },
     {
       name: 'pad.moys',
       description: 'Official platform for the Ministry of Youth and Sports to manage and publish news, programs, and events. Includes dynamic content loading, secure user authentication, and admin dashboard for content management.',
       tech: ['Vue.js', 'Tailwind CSS', 'REST API'],
+      image: '/images/pad-moys.png',
     },
     {
       name: 'SKY Reed Diffuser',
       description: 'Clean, modern product-landing website for a reed diffuser brand. Showcases product story, scents, key features. Uses smooth scroll-based sections (hero, product highlights, variants, gallery, CTA). Fully responsive with Tailwind, deployed as a lightweight frontend.',
       tech: ['Vue.js', 'Tailwind CSS'],
+      image: '/images/SKY.png',
+    },
+    {
+      name: 'five-years-plan',
+      description: 'Five-year plan for the organization. Includes dynamic content loading, secure user authentication, and admin dashboard for content management.',
+      tech: ['Vue.js', 'Tailwind CSS', 'REST API'],
+      image: '/images/fyp.jpg',
     },
   ],
   skills: [
