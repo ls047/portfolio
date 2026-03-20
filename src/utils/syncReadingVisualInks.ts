@@ -1,5 +1,14 @@
 import { readingInkAtPoint } from './readingLight';
 
+const VIEWPORT_SKIP_MARGIN = 96;
+
+function isRectNearViewport(r: DOMRect): boolean {
+  if (typeof window === 'undefined') return true;
+  const h = window.innerHeight;
+  const m = VIEWPORT_SKIP_MARGIN;
+  return r.bottom >= -m && r.top <= h + m;
+}
+
 function sampleElementCenter(el: HTMLElement): { px: number; py: number } | null {
   let r = el.getBoundingClientRect();
   if (r.width === 0 && r.height === 0) {
@@ -8,6 +17,7 @@ function sampleElementCenter(el: HTMLElement): { px: number; py: number } | null
     if (anchor) r = anchor.getBoundingClientRect();
   }
   if (r.width === 0 && r.height === 0) return null;
+  if (!isRectNearViewport(r)) return null;
   return {
     px: r.left + r.width / 2,
     py: r.top + r.height / 2,

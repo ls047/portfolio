@@ -12,7 +12,9 @@
     <AppToast :toasts="toasts" @remove="removeToast" />
   </template>
   <!-- Above game loader (z-index 2147483000) so mute is always reachable -->
-  <SoundToggleButton class="app-sound-toggle" />
+  <SoundToggleButton
+    class="pointer-events-auto fixed top-[calc(max(1.95rem,env(safe-area-inset-top,0px))+0.875rem)] right-[max(0.75rem,env(safe-area-inset-right,0))] left-auto z-[2147483647]"
+  />
 </template>
 
 <script setup lang="ts">
@@ -49,21 +51,3 @@ function onStart() {
   document.body.style.overflow = '';
 }
 </script>
-
-<style scoped>
-/* :deep — class is on child root; parent scoped selector would not match without it */
-:deep(.app-sound-toggle) {
-  position: fixed;
-  top: max(1.35rem, calc(env(safe-area-inset-top, 0px) + 0.55rem));
-  right: max(0.75rem, env(safe-area-inset-right, 0));
-  left: auto;
-  z-index: 2147483647;
-  pointer-events: auto;
-}
-
-@media (min-width: 1024px) {
-  :deep(.app-sound-toggle) {
-    top: max(1.65rem, calc(env(safe-area-inset-top, 0px) + 0.65rem));
-  }
-}
-</style>

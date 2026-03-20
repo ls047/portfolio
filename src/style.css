@@ -63,9 +63,14 @@
   color-scheme: light;
 }
 
-/* Smooth theme transitions */
-* {
-  transition-property: background-color, border-color, color, fill, stroke;
+/*
+ * Theme polish on geometry — not `color` / `fill` / `stroke` on every node: reading layers update
+ * color every frame while scrolling; animating all elements made scroll laggy and fought `.reading-*` transitions.
+ */
+*,
+*::before,
+*::after {
+  transition-property: background-color, border-color;
   transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
   transition-duration: 150ms;
 }

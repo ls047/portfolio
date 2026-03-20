@@ -10,7 +10,7 @@
     <div
       ref="contentOverlayRef"
       class="content-overlay content-scroll relative z-10"
-      :style="contentOverlayStyle"
+      :style="contentOverlayOpacityStyle"
     >
       <slot />
     </div>
@@ -58,22 +58,23 @@ function pokeReadingVisualSync() {
 provide('scrollContainerRef', contentOverlayRef);
 provide('pokeReadingVisualSync', pokeReadingVisualSync);
 
-/** Radial spotlight center (px) follows same sweep as `getLightCenterPx` + CCTV aim. */
-const contentOverlayStyle = computed(() => {
-  readingLightSweepPhase.value;
-  const o = contentOpacity.value;
-  if (typeof window === 'undefined') {
-    return { opacity: o };
-  }
+/**
+ * Opacity only — reactive. Spotlight `--reading-light-*` is written imperatively in the sweep loop
+ * so Vue does not re-run a computed ~60fps (that was forcing layout + style churn and scroll jank).
+ */
+const contentOverlayOpacityStyle = computed(() => ({
+  opacity: contentOpacity.value,
+}));
+
+function paintReadingLightCssVars() {
+  const el = contentOverlayRef.value;
+  if (!el || typeof window === 'undefined') return;
   const w = window.innerWidth;
   const h = window.innerHeight;
   const { x, y } = getLightCenterPx(w, h);
-  return {
-    opacity: o,
-    '--reading-light-x': `${x}px`,
-    '--reading-light-y': `${y}px`,
-  };
-});
+  el.style.setProperty('--reading-light-x', `${x}px`);
+  el.style.setProperty('--reading-light-y', `${y}px`);
+}
 
 const readingLightSweepEnabled = computed(() => contentOpacity.value >= 1);
 
@@ -87,29 +88,44 @@ function readingLightSweepFrame(time: number) {
     readingSweepLastT = 0;
     return;
   }
-  if (
+  paintReadingLightCssVars();
+
+  const reduceMotion =
     typeof window !== 'undefined' &&
-    window.matchMedia('(prefers-reduced-motion: reduce)').matches
-  ) {
+    window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  if (reduceMotion) {
+    if (time - readingSweepLastInkPoke >= 480) {
+      readingSweepLastInkPoke = time;
+      forceReadingUpdate();
+    }
     return;
   }
+
   if (readingSweepLastT === 0) readingSweepLastT = time;
   const dt = Math.min(0.05, (time - readingSweepLastT) / 1000);
   readingSweepLastT = time;
   readingLightSweepPhase.value += READING_LIGHT_SWEEP_SPEED_RAD_S * dt;
 
-  if (time - readingSweepLastInkPoke >= 280) {
+  const inkInterval =
+    typeof window !== 'undefined' && window.innerWidth < 1024 ? 380 : 280;
+  if (time - readingSweepLastInkPoke >= inkInterval) {
     readingSweepLastInkPoke = time;
     forceReadingUpdate();
   }
 }
 
+function onWindowResizeForLight() {
+  if (contentOpacity.value >= 1) paintReadingLightCssVars();
+}
+
 onMounted(() => {
   readingSweepRaf = requestAnimationFrame(readingLightSweepFrame);
+  window.addEventListener('resize', onWindowResizeForLight, { passive: true });
 });
 
 onBeforeUnmount(() => {
   cancelAnimationFrame(readingSweepRaf);
+  window.removeEventListener('resize', onWindowResizeForLight);
 });
 
 const cameraRailVisible = ref(false);
@@ -117,7 +133,10 @@ const cameraRailVisible = ref(false);
 watch(contentOpacity, (opacity) => {
   if (opacity >= 1) {
     void nextTick(() => {
-      requestAnimationFrame(() => forceReadingUpdate());
+      requestAnimationFrame(() => {
+        paintReadingLightCssVars();
+        forceReadingUpdate();
+      });
     });
     cameraRailVisible.value = true;
   } else {
@@ -181,6 +200,8 @@ watch(contentOpacity, (opacity) => {
   scroll-behavior: auto;
   scrollbar-width: none;
   -ms-overflow-style: none;
+  /* Own layer: scroll + backdrop don’t pull the whole page into repaint as often */
+  isolation: isolate;
 }
 
 .content-overlay.content-scroll::-webkit-scrollbar {
@@ -250,9 +271,8 @@ watch(contentOpacity, (opacity) => {
   -webkit-text-fill-color: var(--reading-ink-sync, #000000) !important;
   caret-color: var(--reading-ink-sync, #000000);
   transition-property: color, -webkit-text-fill-color, caret-color !important;
-  /* Long fades + scroll-driven `--reading-ink-sync` updates = mushy, “pixelated” text mid-scroll */
-  transition-duration: 0.12s !important;
-  transition-timing-function: cubic-bezier(0.22, 1, 0.36, 1) !important;
+  transition-duration: 0.16s !important;
+  transition-timing-function: cubic-bezier(0.25, 0.9, 0.35, 1) !important;
 }
 
 /*
@@ -265,8 +285,8 @@ watch(contentOpacity, (opacity) => {
   justify-content: center;
   color: var(--reading-ink-sync, #000000) !important;
   transition-property: color !important;
-  transition-duration: 0.12s !important;
-  transition-timing-function: cubic-bezier(0.22, 1, 0.36, 1) !important;
+  transition-duration: 0.16s !important;
+  transition-timing-function: cubic-bezier(0.25, 0.9, 0.35, 1) !important;
 }
 
 .content-overlay :deep(.reading-icon > *) {
@@ -284,6 +304,24 @@ watch(contentOpacity, (opacity) => {
   .content-overlay :deep(.reading-chip),
   .content-overlay :deep(.reading-word) {
     transition-duration: 0.01ms !important;
+  }
+}
+
+/* Narrow viewports: longer ink blend so grays track the bottom glow without stepping */
+@media (max-width: 1023px) {
+  .content-overlay :deep(.reading-head),
+  .content-overlay :deep(.reading-body),
+  .content-overlay :deep(.reading-muted),
+  .content-overlay :deep(.reading-subtle),
+  .content-overlay :deep(.reading-link) {
+    transition-duration: 0.42s !important;
+    transition-timing-function: cubic-bezier(0.25, 0.85, 0.4, 1) !important;
+  }
+
+  .content-overlay :deep(.reading-word),
+  .content-overlay :deep(.reading-icon) {
+    transition-duration: 0.32s !important;
+    transition-timing-function: cubic-bezier(0.28, 0.88, 0.42, 1) !important;
   }
 }
 </style>
