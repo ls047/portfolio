@@ -93,17 +93,6 @@ export const cvData: CvData = {
   /** Add `image: '/images/your-file.png'` (under `public/images/`) or a full URL; omitted → placeholder. */
   projects: [
     {
-      name: 'SuperHackathon Platform',
-      description: 'Hackathon platform for SuperHackathon 2025. Includes contestants\' login, QR code generation, account creation, acceptance dashboard, questions, and integrated code editor (IDE).',
-      tech: ['Vue.js', 'Tailwind CSS', 'WebSocket'],
-
-    },
-    {
-      name: 'Nova Dev Sprint',
-      description: 'A newer hackathon platform similar to SuperHackathon. Includes contestant registration, real-time communication, QR generation, account management, and an interactive coding environment.',
-      tech: ['Vue.js', 'Tailwind CSS', 'WebSocket'],
-    },
-    {
       name: 'Hashillo',
       description: 'Password management suite with features including QR code generation and a URL safety checker.',
       tech: ['Vue.js', 'Tailwind CSS'],
@@ -145,6 +134,17 @@ export const cvData: CvData = {
       description: 'Five-year plan for the organization. Includes dynamic content loading, secure user authentication, and admin dashboard for content management.',
       tech: ['Vue.js', 'Tailwind CSS', 'REST API'],
       image: '/images/fyp.jpg',
+    },
+    {
+      name: 'SuperHackathon Platform',
+      description: 'Hackathon platform for SuperHackathon 2025. Includes contestants\' login, QR code generation, account creation, acceptance dashboard, questions, and integrated code editor (IDE).',
+      tech: ['Vue.js', 'Tailwind CSS', 'WebSocket'],
+  
+    },
+    {
+      name: 'Nova Dev Sprint',
+      description: 'A newer hackathon platform similar to SuperHackathon. Includes contestant registration, real-time communication, QR generation, account management, and an interactive coding environment.',
+      tech: ['Vue.js', 'Tailwind CSS', 'WebSocket'],
     },
   ],
   skills: [
