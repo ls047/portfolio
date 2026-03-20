@@ -52,18 +52,24 @@ export const appConfig: AppConfig = {
   },
 
   typography: {
-    fonts: [
-      {
-        name: 'IBM Plex Sans',
-        src: '/font/IBMPlexSansArabic-Regular.ttf',
-        weight: 400,
-        style: 'normal',
-        display: 'swap',
-        preload: true,
-      },
-    ],
+    /* Faces loaded via @font-face in style.css (public/font/corsa-rustin-font/) */
+    fonts: [],
     primary: {
-      family: 'IBM Plex Sans',
+      family: 'Corsa Rustin',
+      fallbacks: [
+        'system-ui',
+        '-apple-system',
+        'BlinkMacSystemFont',
+        'Segoe UI',
+        'Roboto',
+        'Helvetica Neue',
+        'Arial',
+        'sans-serif',
+      ],
+      cssVariable: 'font-primary',
+    },
+    secondary: {
+      family: 'Corsa Rustin',
       fallbacks: [
         'system-ui',
         '-apple-system',
@@ -72,11 +78,6 @@ export const appConfig: AppConfig = {
         'Roboto',
         'sans-serif',
       ],
-      cssVariable: 'font-primary',
-    },
-    secondary: {
-      family: 'Georgia',
-      fallbacks: ['Times New Roman', 'serif'],
       cssVariable: 'font-secondary',
     },
     mono: {

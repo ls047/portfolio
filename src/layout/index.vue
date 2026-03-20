@@ -139,7 +139,9 @@ watch(contentOpacity, (opacity) => {
   transition: color 0.35s cubic-bezier(0.22, 1, 0.36, 1) !important;
 }
 .content-overlay :deep(.reading-border) {
-  transition: border-color 0.55s cubic-bezier(0.22, 1, 0.36, 1) !important;
+  transition:
+    border-color 0.55s cubic-bezier(0.22, 1, 0.36, 1),
+    box-shadow 0.55s cubic-bezier(0.22, 1, 0.36, 1) !important;
 }
 .content-overlay :deep(.reading-chip) {
   transition:
@@ -167,7 +169,7 @@ watch(contentOpacity, (opacity) => {
   color: var(--section-link-hover) !important;
 }
 .content-overlay :deep(.reading-border) {
-  border-color: var(--section-divider) !important;
+  border-color: var(--reading-border-sync, var(--section-divider)) !important;
 }
 .content-overlay :deep(.reading-chip) {
   background-color: var(--section-chip-bg) !important;
@@ -180,8 +182,9 @@ watch(contentOpacity, (opacity) => {
   word-break: break-word;
 }
 
-/* Per-word ink from `syncReadingVisualInks` — var updates + transition = smooth drift */
-.content-overlay :deep(.reading-word) {
+/* Per-word + per-icon ink from `syncReadingVisualInks` — same ramp, timing, and fallbacks */
+.content-overlay :deep(.reading-word),
+.content-overlay :deep(.reading-icon) {
   color: var(--reading-ink-sync, #000000) !important;
   -webkit-text-fill-color: var(--reading-ink-sync, #000000) !important;
   caret-color: var(--reading-ink-sync, #000000);
@@ -197,6 +200,7 @@ watch(contentOpacity, (opacity) => {
   .content-overlay :deep(.reading-subtle),
   .content-overlay :deep(.reading-link),
   .content-overlay :deep(.reading-border),
+  .content-overlay :deep(.reading-icon),
   .content-overlay :deep(.reading-chip),
   .content-overlay :deep(.reading-word) {
     transition-duration: 0.01ms !important;

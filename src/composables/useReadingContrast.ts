@@ -60,12 +60,39 @@ export function useReadingContrast(scrollContainerRef: Ref<HTMLElement | null>):
     if (!root) return;
 
     const sections = root.querySelectorAll<HTMLElement>('.section');
+    const vh = typeof window !== 'undefined' ? window.innerHeight : 0;
+    const compact = typeof window !== 'undefined' && window.innerWidth < 1024;
+
     sections.forEach((section) => {
       const anchor = section.querySelector('.section-content') ?? section;
       const rect = anchor.getBoundingClientRect();
       const px = rect.left + rect.width / 2;
-      /* Vertical strip: section often crosses glow + vignette — blend samples */
-      const ys = [0.22, 0.5, 0.78].map((t) => rect.top + rect.height * t);
+      /*
+       * Vertical strip: blend samples through section height.
+       * Contact on phones sits low — upper samples see the top spotlight while copy/cards sit in the vignette;
+       * bias samples toward lower band and the on-screen viewport so --section-* matches per-node ink (.reading-word / .reading-icon).
+       */
+      const isContact = section.dataset.readingZone === 'contact';
+      let ys: number[];
+      if (compact && isContact) {
+        const frac = [0.38, 0.62, 0.88];
+        ys = frac.map((t) => {
+          const y = rect.top + rect.height * t;
+          return Math.max(rect.top + 1, Math.min(rect.bottom - 1, y));
+        });
+        const vy = [vh * 0.42, vh * 0.58, vh * 0.74].map((y) =>
+          Math.max(rect.top + 1, Math.min(rect.bottom - 1, y)),
+        );
+        let strength = 0;
+        for (let i = 0; i < ys.length; i++) {
+          strength +=
+            sampleLightStrength(px, ys[i]) * 0.55 + sampleLightStrength(px, vy[i]) * 0.45;
+        }
+        strength /= ys.length;
+        applySectionTheme(section, strength > READING_LIGHT_THRESHOLD);
+        return;
+      }
+      ys = [0.22, 0.5, 0.78].map((t) => rect.top + rect.height * t);
       let strength = 0;
       for (const py of ys) {
         strength += sampleLightStrength(px, py);

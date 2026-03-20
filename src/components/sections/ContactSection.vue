@@ -1,5 +1,8 @@
 <template>
-  <section :class="sectionRootClass">
+  <section
+    :class="sectionRootClass"
+    data-reading-zone="contact"
+  >
     <div :class="sectionContentClass">
       <header class="contact-header">
         <h2
@@ -26,7 +29,7 @@
               <AppIcon
                 name="icon-[heroicons-outline--phone]"
                 :size="1.25"
-                class="text-[color:var(--section-body,#374151)] opacity-90"
+                class="reading-icon opacity-90"
               />
             </span>
             <div class="contact-card-copy">
@@ -52,7 +55,7 @@
               <AppIcon
                 name="icon-[heroicons-outline--envelope]"
                 :size="1.25"
-                class="text-[color:var(--section-body,#374151)] opacity-90"
+                class="reading-icon opacity-90"
               />
             </span>
             <div class="contact-card-copy">
@@ -128,7 +131,7 @@
                   <AppIcon
                     :name="iconForContactLink(link.url)"
                     :size="1.2"
-                    class="text-[color:var(--section-body,#374151)] opacity-95"
+                    class="reading-icon opacity-95"
                   />
                 </span>
                 <span
@@ -138,7 +141,7 @@
                 <AppIcon
                   name="icon-[heroicons-outline--arrow-top-right-on-square]"
                   :size="1"
-                  class="contact-link-external reading-subtle shrink-0 opacity-55 transition-opacity group-hover:opacity-100"
+                  class="contact-link-external reading-icon shrink-0 opacity-55 transition-opacity group-hover:opacity-100"
                   aria-hidden="true"
                 />
               </a>
@@ -266,7 +269,7 @@ const mailtoHref = computed(() => {
     transform: translateY(-2px);
     box-shadow:
       0 12px 32px rgba(0, 0, 0, 0.08),
-      0 0 0 1px color-mix(in srgb, var(--section-divider, #ccc) 55%, transparent);
+      0 0 0 1px var(--reading-border-sync, var(--section-divider));
   }
 }
 
@@ -368,7 +371,7 @@ const mailtoHref = computed(() => {
     transform: translateY(-2px);
     box-shadow:
       0 10px 28px rgba(0, 0, 0, 0.07),
-      0 0 0 1px color-mix(in srgb, var(--section-divider, #ccc) 50%, transparent);
+      0 0 0 1px var(--reading-border-sync, var(--section-divider));
   }
 
   .contact-link-card:hover .contact-link-card-icon {

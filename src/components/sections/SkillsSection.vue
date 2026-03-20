@@ -37,7 +37,7 @@
                 />
               </div>
               <div
-                class="h-2 overflow-hidden rounded-full border border-[var(--skills-track-border,rgba(28,25,23,0.1))] bg-[var(--section-progress-track,rgba(28,25,23,0.2))] shadow-[inset_0_2px_4px_var(--section-progress-track-shade,rgba(12,10,9,0.18)),inset_0_-1px_0_var(--skills-track-highlight,rgba(255,250,240,0.07))]"
+                class="reading-border h-2 overflow-hidden rounded-full border border-solid bg-[var(--section-progress-track,rgba(28,25,23,0.2))] shadow-[inset_0_2px_4px_var(--section-progress-track-shade,rgba(12,10,9,0.18)),inset_0_-1px_0_var(--skills-track-highlight,rgba(255,250,240,0.07))]"
                 role="progressbar"
                 :aria-valuenow="clampMastery(item.mastery)"
                 aria-valuemin="0"
