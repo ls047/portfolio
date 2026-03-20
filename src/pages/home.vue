@@ -1,7 +1,7 @@
 <template>
   <!-- Phone: narrow column; tablet: wider centered column + bottom tire safe area; lg+: full row beside side tire. -->
   <div
-    class="home-page min-h-screen min-w-0 py-[clamp(1.25rem,4vh,4rem)] max-md:px-[clamp(0.875rem,5vw,1.25rem)] max-md:pb-[max(6.5rem,min(40vh,17rem))] md:max-lg:px-[clamp(1rem,4vw,1.75rem)] md:max-lg:pb-[max(5.5rem,min(32vh,15rem))] sm:py-[clamp(2rem,6vh,4rem)]"
+    class="home-page min-h-screen min-w-0 py-[clamp(1.25rem,4vh,4rem)] max-md:px-[clamp(0.875rem,5vw,1.25rem)] max-md:pb-[max(6.5rem,min(40vh,17rem))] md:max-lg:ps-[clamp(1rem,4vw,1.75rem)] md:max-lg:pe-[max(0px,calc(clamp(1rem,4vw,1.75rem)-24px))] md:max-lg:pb-[max(5.5rem,min(32vh,15rem))] sm:py-[clamp(2rem,6vh,4rem)]"
   >
     <div
       class="flex min-h-full min-w-0 flex-col justify-center gap-[clamp(1.75rem,6vh,4.5rem)] max-md:mx-auto max-md:w-full max-md:max-w-[19rem] md:max-lg:mx-auto md:max-lg:w-full md:max-lg:max-w-[min(38rem,92vw)] lg:mx-0 lg:max-w-none md:gap-[clamp(2.5rem,10vh,5.5rem)] lg:gap-[clamp(3rem,12vh,8rem)] xl:gap-[clamp(4rem,14vh,10rem)]"

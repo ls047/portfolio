@@ -171,7 +171,7 @@ onBeforeUnmount(() => {
 /* ─── Desktop / tablet: right vertical strip (slide in from right) ─── */
 .tire-decoration {
   position: fixed;
-  right: min(2.75vw, 22px);
+  right: 0;
   top: 0;
   width: min(22vw, 320px);
   height: 100vh;
