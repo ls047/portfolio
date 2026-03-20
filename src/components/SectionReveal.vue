@@ -4,7 +4,6 @@
       class="section-reveal min-w-0 w-full"
       :class="revealClasses"
       :data-section-visible="dataSectionVisible"
-      @animationend="onRevealAnimationEnd"
     >
       <slot />
     </div>
@@ -16,7 +15,6 @@ import { ref, computed, watch, onBeforeUnmount, nextTick, inject } from 'vue';
 import type { Ref } from 'vue';
 
 const scrollContainerRef = inject<Ref<HTMLElement | null> | undefined>('scrollContainerRef');
-const pokeReadingVisualSync = inject<(() => void) | undefined>('pokeReadingVisualSync', undefined);
 
 const ioTargetRef = ref<HTMLElement | null>(null);
 /** Section is “open” in the scroll viewport (door visible). */
@@ -26,57 +24,16 @@ const ioReady = ref(false);
 /** Has ever been open — retract only runs after user saw the section at least once. */
 const everOpened = ref(false);
 
-let emergeTimerIds: number[] = [];
 let observer: IntersectionObserver | null = null;
-
-function clearEmergeTimers() {
-  emergeTimerIds.forEach((id) => clearTimeout(id));
-  emergeTimerIds = [];
-}
-
-/** Ink is sampled from word positions; emerge duration differs desktop vs mobile — one rAF is far too early. */
-function scheduleEmergeResync() {
-  clearEmergeTimers();
-  const poke = () => {
-    void nextTick(() => {
-      requestAnimationFrame(() => pokeReadingVisualSync?.());
-    });
-  };
-  const mobile =
-    typeof window !== 'undefined' && window.matchMedia('(max-width: 1023px)').matches;
-  poke();
-  if (mobile) {
-    emergeTimerIds.push(
-      window.setTimeout(poke, 220),
-      window.setTimeout(poke, 480),
-      window.setTimeout(poke, 920),
-    );
-  } else {
-    emergeTimerIds.push(
-      window.setTimeout(poke, 380),
-      window.setTimeout(poke, 720),
-      window.setTimeout(poke, 1520),
-    );
-  }
-}
-
-function onRevealAnimationEnd(ev: AnimationEvent) {
-  if (!open.value) return;
-  if (!/(?:tire-emerge|sheet-emerge)/i.test(ev.animationName)) return;
-  clearEmergeTimers();
-  void nextTick(() => {
-    requestAnimationFrame(() => pokeReadingVisualSync?.());
-  });
-}
-
-/** Enter vs leave hysteresis (ratio of layout box inside scrollport). */
-const IO_ENTER = 0.065;
-const IO_LEAVE = 0.028;
 
 function disconnect() {
   observer?.disconnect();
   observer = null;
 }
+
+/** Enter vs leave hysteresis (ratio of layout box inside scrollport). */
+const IO_ENTER = 0.065;
+const IO_LEAVE = 0.028;
 
 function computeOpen(entry: IntersectionObserverEntry, wasOpen: boolean): boolean {
   if (!entry.isIntersecting) return false;
@@ -100,23 +57,13 @@ function connect() {
       if (!ioReady.value) {
         ioReady.value = true;
         open.value = next;
-        if (next) {
-          everOpened.value = true;
-          scheduleEmergeResync();
-        } else {
-          clearEmergeTimers();
-        }
+        if (next) everOpened.value = true;
         return;
       }
 
       if (next === open.value) return;
       open.value = next;
-      if (next) {
-        everOpened.value = true;
-        scheduleEmergeResync();
-      } else {
-        clearEmergeTimers();
-      }
+      if (next) everOpened.value = true;
     },
     {
       root,
@@ -146,7 +93,6 @@ watch(
 );
 
 onBeforeUnmount(() => {
-  clearEmergeTimers();
   disconnect();
 });
 </script>

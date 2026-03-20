@@ -1,4 +1,4 @@
-/** Shared home layout (Me, Skills, Experiences, Contact). `.section` is required for `useReadingContrast`. */
+/** Shared home layout (Me, Skills, Experiences, Contact). */
 /** Below `md`, edge-to-edge. From `md` up, end padding is 24px less than start so the right tire has no black gutter. */
 export const sectionRootClass =
   'section flex min-h-screen w-full min-w-0 items-center justify-start py-[clamp(1.75rem,4.5vh,3.5rem)] px-0 md:ps-[clamp(1rem,4vw,1.5rem)] md:pe-[max(0px,calc(clamp(1rem,4vw,1.5rem)-24px))] sm:py-[clamp(2rem,5vh,3.5rem)]';
