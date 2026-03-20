@@ -34,7 +34,7 @@ function clearEmergeTimers() {
   emergeTimerIds = [];
 }
 
-/** Ink is sampled from word positions; tire-emerge animates transforms ~1.5s — one rAF is far too early. */
+/** Ink is sampled from word positions; emerge duration differs desktop vs mobile — one rAF is far too early. */
 function scheduleEmergeResync() {
   clearEmergeTimers();
   const poke = () => {
@@ -42,17 +42,27 @@ function scheduleEmergeResync() {
       requestAnimationFrame(() => pokeReadingVisualSync?.());
     });
   };
+  const mobile =
+    typeof window !== 'undefined' && window.matchMedia('(max-width: 768px)').matches;
   poke();
-  emergeTimerIds.push(
-    window.setTimeout(poke, 380),
-    window.setTimeout(poke, 720),
-    window.setTimeout(poke, 1520),
-  );
+  if (mobile) {
+    emergeTimerIds.push(
+      window.setTimeout(poke, 220),
+      window.setTimeout(poke, 480),
+      window.setTimeout(poke, 920),
+    );
+  } else {
+    emergeTimerIds.push(
+      window.setTimeout(poke, 380),
+      window.setTimeout(poke, 720),
+      window.setTimeout(poke, 1520),
+    );
+  }
 }
 
 function onRevealAnimationEnd(ev: AnimationEvent) {
   if (!open.value) return;
-  if (!/tire-emerge/i.test(ev.animationName)) return;
+  if (!/(?:tire-emerge|sheet-emerge)/i.test(ev.animationName)) return;
   clearEmergeTimers();
   void nextTick(() => {
     requestAnimationFrame(() => pokeReadingVisualSync?.());
@@ -170,23 +180,21 @@ onBeforeUnmount(() => {
   animation: tire-retract-desktop 1.22s forwards;
 }
 
+/* Mobile: 2D only — no perspective, blur, or huge Z (those tank compositing on phones). */
 @media (max-width: 768px) {
   .section-reveal {
-    transform-origin: 50% calc(100% + min(20vh, 150px));
-    transform:
-      perspective(1100px)
-      translate3d(0, min(5vh, 40px), -980px)
-      rotateX(42deg)
-      scale3d(0.1, 0.1, 1);
-    filter: blur(13px) brightness(0.6) saturate(0.88);
+    transform-style: flat;
+    transform-origin: 50% 50%;
+    transform: translate3d(0, 1.125rem, 0) scale(0.93);
+    filter: none;
   }
 
   .section-reveal--open {
-    animation-name: tire-emerge-mobile;
+    animation: sheet-emerge-mobile 0.88s cubic-bezier(0.22, 1, 0.32, 1) forwards;
   }
 
   .section-reveal--closed {
-    animation-name: tire-retract-mobile;
+    animation: sheet-retract-mobile 0.62s cubic-bezier(0.4, 0, 0.2, 1) forwards;
   }
 }
 
@@ -226,38 +234,26 @@ onBeforeUnmount(() => {
   }
 }
 
-@keyframes tire-emerge-mobile {
-  0% {
+/* Mobile emerge / retract: translateY + scale + opacity only (smooth on low-end GPUs). */
+@keyframes sheet-emerge-mobile {
+  from {
     opacity: 0;
-    filter: blur(13px) brightness(0.6);
-    transform:
-      perspective(1100px)
-      translate3d(0, min(5vh, 40px), -980px)
-      rotateX(42deg)
-      scale3d(0.1, 0.1, 1);
-    animation-timing-function: cubic-bezier(0.22, 1, 0.38, 1);
+    transform: translate3d(0, 1.125rem, 0) scale(0.93);
   }
-  12% {
+  to {
     opacity: 1;
+    transform: translate3d(0, 0, 0) scale(1);
   }
-  40% {
+}
+
+@keyframes sheet-retract-mobile {
+  from {
     opacity: 1;
-    filter: blur(4px) brightness(0.9);
-    transform:
-      perspective(1100px)
-      translate3d(0, 0, 0)
-      rotateX(0deg)
-      scale3d(0.1, 0.1, 1);
-    animation-timing-function: cubic-bezier(0.18, 0.92, 0.22, 1);
+    transform: translate3d(0, 0, 0) scale(1);
   }
-  100% {
-    opacity: 1;
-    filter: none;
-    transform:
-      perspective(1100px)
-      translate3d(0, 0, 0)
-      rotateX(0deg)
-      scale3d(1, 1, 1);
+  to {
+    opacity: 0;
+    transform: translate3d(0, 0.875rem, 0) scale(0.93);
   }
 }
 
@@ -293,41 +289,6 @@ onBeforeUnmount(() => {
       perspective(1100px)
       translate3d(min(5vw, 48px), 0, -980px)
       rotateY(26deg)
-      scale3d(0.1, 0.1, 1);
-  }
-}
-
-@keyframes tire-retract-mobile {
-  0% {
-    opacity: 1;
-    filter: none;
-    transform:
-      perspective(1100px)
-      translate3d(0, 0, 0)
-      rotateX(0deg)
-      scale3d(1, 1, 1);
-    animation-timing-function: cubic-bezier(0.28, 0.1, 0.29, 1);
-  }
-  42% {
-    opacity: 1;
-    filter: blur(4px) brightness(0.9);
-    transform:
-      perspective(1100px)
-      translate3d(0, 0, 0)
-      rotateX(0deg)
-      scale3d(0.1, 0.1, 1);
-    animation-timing-function: cubic-bezier(0.22, 1, 0.38, 1);
-  }
-  85% {
-    opacity: 1;
-  }
-  100% {
-    opacity: 0;
-    filter: blur(13px) brightness(0.6);
-    transform:
-      perspective(1100px)
-      translate3d(0, min(5vh, 40px), -980px)
-      rotateX(42deg)
       scale3d(0.1, 0.1, 1);
   }
 }
