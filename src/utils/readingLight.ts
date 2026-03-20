@@ -10,13 +10,14 @@ export const READING_LIGHT_THRESHOLD = 0.32;
 
 /**
  * Pixel center of the radial spotlight — keep in sync with `layout/index.vue`.
- * Mobile (≤768px): top center. Larger: left mirror of tire strip, mid-height.
+ * Compact viewports (<lg / 1024px): top-center spotlight (phones & tablets with bottom tire).
+ * lg+: left mirror of tire strip, mid-height.
  */
 export function getLightCenterPx(viewportWidth: number, viewportHeight: number): {
   x: number;
   y: number;
 } {
-  if (viewportWidth <= 768) {
+  if (viewportWidth < 1024) {
     return { x: viewportWidth / 2, y: viewportHeight * 0.06 };
   }
   /* Match layout `--reading-light-x: min(13vw, 185px)` (nudged toward viewport center vs tire strip). */

@@ -105,9 +105,9 @@ watch(contentOpacity, (opacity) => {
   background-position: center;
 }
 
-@media (max-width: 768px) {
+@media (max-width: 1023px) {
   .content-overlay {
-    /* Mobile only: spotlight slightly below top edge (closer to vertical center) */
+    /* Phones & tablets: top-centered spotlight (bottom tire layout) */
     --reading-light-x: 50%;
     --reading-light-y: 6%;
     background-attachment: scroll;

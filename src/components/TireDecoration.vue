@@ -228,7 +228,7 @@ onBeforeUnmount(() => {
 }
 
 /* ─── Mobile only: bottom band; overflow visible so the translated wheel stays tappable ─── */
-@media (max-width: 768px) {
+@media (max-width: 1023px) {
   .tire-decoration {
     left: 0;
     right: 0;

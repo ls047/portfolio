@@ -43,7 +43,7 @@ function scheduleEmergeResync() {
     });
   };
   const mobile =
-    typeof window !== 'undefined' && window.matchMedia('(max-width: 768px)').matches;
+    typeof window !== 'undefined' && window.matchMedia('(max-width: 1023px)').matches;
   poke();
   if (mobile) {
     emergeTimerIds.push(
@@ -180,8 +180,8 @@ onBeforeUnmount(() => {
   animation: tire-retract-desktop 1.22s forwards;
 }
 
-/* Mobile: 2D only — no perspective, blur, or huge Z (those tank compositing on phones). */
-@media (max-width: 768px) {
+/* Phones & tablets: 2D only — no perspective, blur, or huge Z (those tank compositing on smaller GPUs). */
+@media (max-width: 1023px) {
   .section-reveal {
     transform-style: flat;
     transform-origin: 50% 50%;

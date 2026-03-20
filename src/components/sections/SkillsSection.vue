@@ -6,7 +6,7 @@
         v-reading-chars="SKILLS_TITLE"
       />
       <p
-        class="mb-8 max-w-none text-sm leading-relaxed text-[var(--skills-muted)] sm:max-w-lg sm:leading-[1.55]"
+        class="mb-8 max-w-none text-sm leading-relaxed text-[var(--skills-muted)] sm:max-w-lg sm:leading-[1.55] md:max-lg:max-w-2xl"
         v-reading-chars="SKILLS_INTRO"
       />
 
