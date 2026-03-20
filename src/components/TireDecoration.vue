@@ -9,9 +9,7 @@
       ref="tireWrapperRef"
       class="tire-image-wrapper"
       @pointerdown="onPointerDown"
-      @pointermove="onPointerMove"
-      @pointerup="onPointerUp"
-      @pointercancel="onPointerUp"
+      @pointercancel="onPointerCancel"
     >
       <img
         :src="rimTireImage"
@@ -58,6 +56,7 @@ const scrollRotation = ref(0);
 const isDragging = ref(false);
 const tireWrapperRef = ref<HTMLElement | null>(null);
 let lastPointerY = 0;
+let activePointerId: number | null = null;
 const ROTATIONS_PER_FULL_SCROLL = 2;
 
 function updateRotation() {
@@ -82,33 +81,71 @@ function detachScroll(el: HTMLElement) {
   el.removeEventListener('scroll', updateRotation);
 }
 
-function onPointerDown(e: PointerEvent) {
-  if (!scrollContainerRef?.value) return;
-  e.preventDefault();
-  isDragging.value = true;
-  lastPointerY = e.clientY;
-  tireWrapperRef.value?.setPointerCapture(e.pointerId);
-}
-
-function onPointerMove(e: PointerEvent) {
-  if (!isDragging.value || !scrollContainerRef?.value) return;
-  const el = scrollContainerRef.value;
-  const deltaY = e.clientY - lastPointerY;
-  lastPointerY = e.clientY;
+function applyScrollFromDelta(clientY: number) {
+  const el = scrollContainerRef?.value;
+  if (!el) return;
+  const deltaY = clientY - lastPointerY;
+  lastPointerY = clientY;
   const maxScroll = el.scrollHeight - el.clientHeight;
   if (maxScroll <= 0) return;
   el.scrollTop = Math.max(0, Math.min(maxScroll, el.scrollTop + deltaY));
   updateRotation();
 }
 
-function onPointerUp(e: PointerEvent) {
-  if (!isDragging.value) return;
+function endDrag() {
+  document.removeEventListener('pointermove', onDocumentPointerMove);
+  document.removeEventListener('pointerup', onDocumentPointerUp, true);
+  document.removeEventListener('pointercancel', onDocumentPointerUp, true);
+
+  const id = activePointerId;
   isDragging.value = false;
-  try {
-    tireWrapperRef.value?.releasePointerCapture(e.pointerId);
-  } catch {
-    /* no capture */
+  activePointerId = null;
+  if (id != null && tireWrapperRef.value) {
+    try {
+      tireWrapperRef.value.releasePointerCapture(id);
+    } catch {
+      /* not captured */
+    }
   }
+}
+
+/** Document-level moves so touch isn’t lost when the finger leaves the wheel (especially on mobile). */
+function onDocumentPointerMove(e: PointerEvent) {
+  if (activePointerId == null || e.pointerId !== activePointerId) return;
+  e.preventDefault();
+  applyScrollFromDelta(e.clientY);
+}
+
+function onDocumentPointerUp(e: PointerEvent) {
+  if (activePointerId == null || e.pointerId !== activePointerId) return;
+  e.preventDefault();
+  endDrag();
+}
+
+function onPointerDown(e: PointerEvent) {
+  if (!scrollContainerRef?.value) return;
+  if (e.pointerType === 'mouse' && e.button !== 0) return;
+  if (isDragging.value) return;
+
+  e.preventDefault();
+  isDragging.value = true;
+  activePointerId = e.pointerId;
+  lastPointerY = e.clientY;
+
+  try {
+    tireWrapperRef.value?.setPointerCapture(e.pointerId);
+  } catch {
+    /* ignore */
+  }
+
+  document.addEventListener('pointermove', onDocumentPointerMove, { passive: false });
+  document.addEventListener('pointerup', onDocumentPointerUp, true);
+  document.addEventListener('pointercancel', onDocumentPointerUp, true);
+}
+
+function onPointerCancel(e: PointerEvent) {
+  if (activePointerId != null && e.pointerId !== activePointerId) return;
+  endDrag();
 }
 
 watch(
@@ -124,6 +161,7 @@ watch(
 );
 
 onBeforeUnmount(() => {
+  endDrag();
   const el = scrollContainerRef?.value;
   if (el) detachScroll(el);
 });
@@ -189,7 +227,7 @@ onBeforeUnmount(() => {
   transition: transform 0.05s linear;
 }
 
-/* ─── Mobile only: bottom-centered band (slide up); wheel sits lower in the viewport ─── */
+/* ─── Mobile only: bottom band; overflow visible so the translated wheel stays tappable ─── */
 @media (max-width: 768px) {
   .tire-decoration {
     left: 0;
@@ -201,6 +239,9 @@ onBeforeUnmount(() => {
     align-items: flex-end;
     justify-content: center;
     transform: translateY(100%);
+    overflow: visible;
+    /* Extra bottom safe zone so drags starting just above the chrome still hit */
+    padding-bottom: env(safe-area-inset-bottom, 0);
   }
 
   .tire-decoration.tire-slided-in {
@@ -212,8 +253,10 @@ onBeforeUnmount(() => {
     height: min(88vw, 400px);
     min-width: min(88vw, 400px);
     min-height: min(88vw, 400px);
-    /* Push wheel further down — mostly below the fold */
     transform: translateY(64%);
+    /* Widen vertical grab area without shifting art much */
+    padding-top: min(8vh, 72px);
+    margin-top: calc(-1 * min(8vh, 72px));
   }
 }
 </style>
