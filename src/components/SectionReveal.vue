@@ -161,10 +161,10 @@ onBeforeUnmount(() => {
   opacity: 0;
   pointer-events: none;
   transform-style: preserve-3d;
-  transform-origin: calc(100% + min(11vw, 160px)) 50%;
+  transform-origin: calc(100% + min(10vw, 148px)) 50%;
   transform:
     perspective(1100px)
-    translate3d(min(5vw, 48px), 0, -980px)
+    translate3d(min(4vw, 38px), 0, -980px)
     rotateY(26deg)
     scale3d(0.1, 0.1, 1);
   filter: blur(14px) brightness(0.62) saturate(0.9);
@@ -205,7 +205,7 @@ onBeforeUnmount(() => {
     filter: blur(14px) brightness(0.62);
     transform:
       perspective(1100px)
-      translate3d(min(5vw, 48px), 0, -980px)
+      translate3d(min(4vw, 38px), 0, -980px)
       rotateY(26deg)
       scale3d(0.1, 0.1, 1);
     animation-timing-function: cubic-bezier(0.22, 1, 0.38, 1);
@@ -287,7 +287,7 @@ onBeforeUnmount(() => {
     filter: blur(14px) brightness(0.62);
     transform:
       perspective(1100px)
-      translate3d(min(5vw, 48px), 0, -980px)
+      translate3d(min(4vw, 38px), 0, -980px)
       rotateY(26deg)
       scale3d(0.1, 0.1, 1);
   }

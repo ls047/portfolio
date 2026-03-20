@@ -171,7 +171,7 @@ onBeforeUnmount(() => {
 /* ─── Desktop / tablet: right vertical strip (slide in from right) ─── */
 .tire-decoration {
   position: fixed;
-  right: 0;
+  right: min(2.75vw, 22px);
   top: 0;
   width: min(22vw, 320px);
   height: 100vh;
@@ -233,7 +233,7 @@ onBeforeUnmount(() => {
     left: 0;
     right: 0;
     top: auto;
-    bottom: 0;
+    bottom: min(1.5vh, 14px);
     width: 100%;
     height: min(40vh, 320px);
     align-items: flex-end;
@@ -253,7 +253,7 @@ onBeforeUnmount(() => {
     height: min(88vw, 400px);
     min-width: min(88vw, 400px);
     min-height: min(88vw, 400px);
-    transform: translateY(64%);
+    transform: translateY(58%);
     /* Widen vertical grab area without shifting art much */
     padding-top: min(8vh, 72px);
     margin-top: calc(-1 * min(8vh, 72px));

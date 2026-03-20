@@ -89,7 +89,7 @@ watch(contentOpacity, (opacity) => {
   --section-chip-bg: rgba(0, 0, 0, 0.08);
   --section-chip-text: #000000;
   /* Desktop: left mirror of right tire strip — sync with readingLight.getLightCenterPx */
-  --reading-light-x: min(11vw, 160px);
+  --reading-light-x: min(13vw, 185px);
   --reading-light-y: 50%;
   /* White spotlight → black vignette; neutral mid grays only */
   background: radial-gradient(
@@ -107,9 +107,9 @@ watch(contentOpacity, (opacity) => {
 
 @media (max-width: 768px) {
   .content-overlay {
-    /* Mobile only: top-center spotlight + scroll attachment */
+    /* Mobile only: spotlight slightly below top edge (closer to vertical center) */
     --reading-light-x: 50%;
-    --reading-light-y: 0%;
+    --reading-light-y: 6%;
     background-attachment: scroll;
   }
 }

@@ -9,7 +9,13 @@
         <li
           v-for="(project, idx) in projects"
           :key="idx"
-          class="project-card reading-border w-full min-w-0 max-w-full border-b pb-8 break-words last:border-0 last:pb-0"
+          class="project-card reading-border w-full min-w-0 max-w-full cursor-pointer border-b pb-8 break-words transition-opacity hover:opacity-[0.92] last:border-0 last:pb-0"
+          role="button"
+          tabindex="0"
+          :aria-label="`Open preview: ${project.name}`"
+          @click="openPreview(project)"
+          @keydown.enter.prevent="openPreview(project)"
+          @keydown.space.prevent="openPreview(project)"
         >
           <div
             class="grid grid-cols-1 gap-5 sm:grid-cols-[minmax(0,38%)_minmax(0,1fr)] sm:items-start sm:gap-6"
@@ -52,24 +58,41 @@
                 rel="noopener noreferrer"
                 class="reading-link mt-3 inline-block max-w-full break-all text-sm font-medium underline"
                 v-reading-chars="'View project →'"
+                @click.stop
               />
             </div>
           </div>
         </li>
       </ul>
     </div>
+
+    <ProjectPreviewModal
+      :project="previewProject"
+      @close="closePreview"
+    />
   </section>
 </template>
 
 <script setup lang="ts">
-import { reactive, watch } from 'vue';
+import { reactive, ref, watch } from 'vue';
 import type { CvProject } from '@/data/cv';
 import { projectsSectionRootClass, sectionContentClass } from '@/constants/sectionLayout';
 import { DEFAULT_PROJECT_IMAGE_URL, publicUrl } from '@/constants/projectAssets';
+import ProjectPreviewModal from '@/components/ProjectPreviewModal.vue';
 
 const props = defineProps<{
   projects: CvProject[];
 }>();
+
+const previewProject = ref<CvProject | null>(null);
+
+function openPreview(p: CvProject) {
+  previewProject.value = p;
+}
+
+function closePreview() {
+  previewProject.value = null;
+}
 
 function resolveSrc(p: CvProject): string {
   const raw = p.image?.trim();

@@ -17,10 +17,13 @@ export function getLightCenterPx(viewportWidth: number, viewportHeight: number):
   y: number;
 } {
   if (viewportWidth <= 768) {
-    return { x: viewportWidth / 2, y: 0 };
+    return { x: viewportWidth / 2, y: viewportHeight * 0.06 };
   }
-  const stripHalf = Math.min((viewportWidth * TIRE_STRIP_VW) / 100, TIRE_STRIP_MAX_PX) / 2;
-  return { x: stripHalf, y: viewportHeight * 0.5 };
+  /* Match layout `--reading-light-x: min(13vw, 185px)` (nudged toward viewport center vs tire strip). */
+  return {
+    x: Math.min((viewportWidth * 13) / 100, 185),
+    y: viewportHeight * 0.5,
+  };
 }
 
 /** Strict binary ink for contrast helpers / section chrome */
