@@ -146,17 +146,23 @@ export const cvData: CvData = {
       description: 'A newer hackathon platform similar to SuperHackathon. Includes contestant registration, real-time communication, QR generation, account management, and an interactive coding environment.',
       tech: ['Vue.js', 'Tailwind CSS', 'WebSocket'],
     },
-  ],
-  skills: [
     {
-      category: 'Frameworks',
-      items: [
-        { name: 'Vue.js', mastery: 94 },
-        { name: 'Nuxt.js', mastery: 88 },
-        { name: 'React.js', mastery: 80 },
-        { name: 'Three.js', mastery: 78 },
-      ],
+      name: 'tic tac toe',
+      description: 'An online tic tac toe game built with Vue.js and Tailwind CSS, and websockets.',
+      tech: ['Vue.js', 'Tailwind CSS', 'WebSocket'],
     },
+    {
+      name: 'siantafic affairs',
+      description: 'A simple system for managing the affairs of the university of information technology and communication.',
+      tech: ['Vue.js', 'Tailwind CSS'],
+    },
+    {
+      name: 'univercity management system',
+      description: 'A simple system for managing the affairs of the university of information technology and communication, including lectures and students, submitting assignments, and more.',
+      tech: ['Vue.js', 'Tailwind CSS', 'REST API'],
+    },
+  ],
+  skills: [  
     {
       category: 'Languages & styling',
       items: [
