@@ -1,32 +1,43 @@
 <template>
   <Teleport to="body">
-    <div
-      v-if="project"
-      class="project-preview-root fixed inset-0 z-[2147483647] flex justify-center max-sm:items-end sm:items-center sm:p-4"
-      role="dialog"
-      aria-modal="true"
-      :aria-labelledby="titleId"
-    >
+    <Transition name="ppsheet">
       <div
-        class="absolute inset-0 bg-black/75 backdrop-blur-[2px] max-sm:bg-black/82"
-        aria-hidden="true"
-        @click="emit('close')"
-      />
-      <div
-        class="project-preview-panel relative flex w-full flex-col overflow-hidden border border-white/10 bg-neutral-950 shadow-[0_-12px_48px_rgba(0,0,0,0.55)] max-sm:max-h-[100dvh] max-sm:rounded-b-none max-sm:rounded-t-2xl max-sm:border-x-0 max-sm:border-b-0 max-sm:border-t-white/15 max-sm:pb-[env(safe-area-inset-bottom,0px)] sm:max-h-[min(92vh,56rem)] sm:max-w-3xl sm:rounded-2xl sm:border-white/15 sm:shadow-2xl"
-        @click.stop
+        v-if="project"
+        class="project-preview-root fixed inset-0 z-[2147483647] flex justify-center max-sm:items-end sm:items-center sm:p-4"
+        role="dialog"
+        aria-modal="true"
+        :aria-labelledby="titleId"
       >
-        <!-- Mobile sheet affordance -->
         <div
-          class="shrink-0 pt-2 sm:hidden"
+          class="project-preview-backdrop absolute inset-0 bg-black/75 backdrop-blur-[2px] max-sm:bg-black/82"
+          :style="backdropDragStyle"
           aria-hidden="true"
+          @click="emit('close')"
+        />
+        <div
+          class="project-preview-panel relative flex w-full flex-col overflow-hidden border border-white/10 bg-neutral-950 shadow-[0_-12px_48px_rgba(0,0,0,0.55)] max-sm:max-h-[100dvh] max-sm:rounded-b-none max-sm:rounded-t-2xl max-sm:border-x-0 max-sm:border-b-0 max-sm:border-t-white/15 max-sm:pb-[env(safe-area-inset-bottom,0px)] sm:max-h-[min(92vh,56rem)] sm:max-w-3xl sm:rounded-2xl sm:border-white/15 sm:shadow-2xl"
+          :class="{ 'sheet-dragging': isSheetDragging }"
+          :style="sheetPanelStyle"
+          @click.stop
         >
-          <div class="mx-auto h-1 w-10 rounded-full bg-white/22" />
-        </div>
+          <!-- Mobile: drag handle + header = dismiss by dragging down -->
+          <div
+            class="sheet-drag-region max-sm:touch-none sm:touch-auto"
+            @pointerdown="onSheetPointerDown"
+            @pointermove="onSheetPointerMove"
+            @pointerup="onSheetPointerUp"
+            @pointercancel="onSheetPointerUp"
+          >
+            <div
+              class="shrink-0 pt-2 sm:hidden"
+              aria-hidden="true"
+            >
+              <div class="mx-auto h-1 w-10 rounded-full bg-white/22" />
+            </div>
 
-        <header
-          class="sticky top-0 z-10 flex shrink-0 items-start justify-between gap-3 border-b border-white/10 bg-neutral-950/95 px-4 py-3 backdrop-blur-md sm:static sm:bg-neutral-950 sm:px-5 sm:py-4 sm:backdrop-blur-none"
-        >
+            <header
+              class="sticky top-0 z-10 flex shrink-0 items-start justify-between gap-3 border-b border-white/10 bg-neutral-950/95 px-4 py-3 backdrop-blur-md sm:static sm:bg-neutral-950 sm:px-5 sm:py-4 sm:backdrop-blur-none"
+            >
           <h2
             :id="titleId"
             class="text-balance pr-2 text-base font-semibold leading-snug text-white sm:text-lg md:text-xl"
@@ -41,10 +52,11 @@
           >
             <AppIcon name="icon-[heroicons-outline--x-mark]" :size="1.125" />
           </button>
-        </header>
+            </header>
+          </div>
 
         <div
-          class="project-preview-scroll min-h-0 flex-1 overflow-y-auto overscroll-y-contain [-webkit-overflow-scrolling:touch]"
+          class="project-preview-scroll min-h-0 flex-1 touch-pan-y overflow-y-auto overscroll-y-contain [-webkit-overflow-scrolling:touch] sm:touch-auto"
         >
           <div
             class="relative w-full overflow-hidden bg-gradient-to-b from-black/40 to-black/70 max-sm:min-h-[min(38svh,280px)] max-sm:max-h-[min(46svh,340px)] sm:aspect-[16/9] sm:max-h-none sm:bg-black/50 lg:aspect-[2/1]"
@@ -122,6 +134,7 @@
         </div>
       </div>
     </div>
+    </Transition>
 
     <div
       v-if="project && showOrgSourceDialog"
@@ -163,6 +176,7 @@
 <script setup lang="ts">
 import { computed, inject, onMounted, onBeforeUnmount, ref, watch } from 'vue';
 import type { Ref } from 'vue';
+import { useMediaQuery } from '@vueuse/core';
 import type { CvProject } from '@/data/cv';
 import { DEFAULT_PROJECT_IMAGE_URL, publicUrl } from '@/constants/projectAssets';
 import AppIcon from '@/components/global/AppIcon.vue';
@@ -180,13 +194,98 @@ const titleId = 'project-preview-title';
 const heroFailed = ref(false);
 const showOrgSourceDialog = ref(false);
 
-watch(
-  () => props.project,
-  () => {
-    heroFailed.value = false;
-    showOrgSourceDialog.value = false;
+/** Mobile bottom-sheet: drag down to dismiss */
+const isMobileSheet = useMediaQuery('(max-width: 639px)');
+const dragY = ref(0);
+const isSheetDragging = ref(false);
+const snapBackActive = ref(false);
+let sheetPointerId: number | null = null;
+let sheetPointerStartY = 0;
+
+function sheetDismissThreshold(): number {
+  return Math.min(window.innerHeight * 0.18, 140);
+}
+
+function resetSheetDrag(): void {
+  dragY.value = 0;
+  isSheetDragging.value = false;
+  snapBackActive.value = false;
+  sheetPointerId = null;
+}
+
+const sheetPanelStyle = computed(() => {
+  if (!isMobileSheet.value) return {};
+  if (dragY.value <= 0 && !snapBackActive.value) return {};
+  return {
+    transform: `translateY(${dragY.value}px)`,
+    transition: isSheetDragging.value ? 'none' : 'transform 0.28s cubic-bezier(0.32, 0.72, 0, 1)',
+  };
+});
+
+const backdropDragStyle = computed(() => {
+  if (!isMobileSheet.value || dragY.value <= 0) return {};
+  const t = Math.min(dragY.value / (window.innerHeight * 0.45), 1);
+  const opacity = 0.78 * (1 - t * 0.55);
+  return { opacity: String(Math.max(0.28, opacity)) };
+});
+
+function onSheetPointerDown(e: PointerEvent): void {
+  if (!isMobileSheet.value) return;
+  if (e.pointerType === 'mouse' && e.button !== 0) return;
+  const target = e.target as HTMLElement | null;
+  if (target?.closest('button, a')) return;
+
+  sheetPointerId = e.pointerId;
+  sheetPointerStartY = e.clientY;
+  (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+}
+
+function onSheetPointerMove(e: PointerEvent): void {
+  if (!isMobileSheet.value || sheetPointerId === null || e.pointerId !== sheetPointerId) return;
+  const dy = e.clientY - sheetPointerStartY;
+  if (dy > 0) {
+    dragY.value = dy;
+    isSheetDragging.value = true;
+  } else {
+    dragY.value = 0;
   }
-);
+}
+
+function onSheetPointerUp(e: PointerEvent): void {
+  if (!isMobileSheet.value) return;
+  if (sheetPointerId === null || e.pointerId !== sheetPointerId) return;
+
+  const el = e.currentTarget as HTMLElement;
+  try {
+    el.releasePointerCapture(e.pointerId);
+  } catch {
+    /* already released */
+  }
+
+  const currentDrag = dragY.value;
+  sheetPointerId = null;
+
+  if (currentDrag === 0) {
+    isSheetDragging.value = false;
+    return;
+  }
+
+  const threshold = sheetDismissThreshold();
+  if (currentDrag > threshold) {
+    emit('close');
+    resetSheetDrag();
+    return;
+  }
+
+  isSheetDragging.value = false;
+  snapBackActive.value = true;
+  requestAnimationFrame(() => {
+    dragY.value = 0;
+  });
+  window.setTimeout(() => {
+    snapBackActive.value = false;
+  }, 320);
+}
 
 const hasAnyProjectLinks = computed(() => {
   const p = props.project;
@@ -225,6 +324,9 @@ const savedScrollOverflow = ref<string | null>(null);
 watch(
   () => props.project,
   (p: CvProject | null) => {
+    heroFailed.value = false;
+    showOrgSourceDialog.value = false;
+    resetSheetDrag();
     const el = scrollContainerRef?.value;
     if (!el) return;
     if (p) {
@@ -252,3 +354,44 @@ onBeforeUnmount(() => {
   }
 });
 </script>
+
+<style scoped>
+.ppsheet-enter-active .project-preview-backdrop,
+.ppsheet-leave-active .project-preview-backdrop {
+  transition: opacity 0.32s ease;
+}
+
+.ppsheet-enter-from .project-preview-backdrop,
+.ppsheet-leave-to .project-preview-backdrop {
+  opacity: 0;
+}
+
+.ppsheet-enter-active .project-preview-panel,
+.ppsheet-leave-active .project-preview-panel {
+  transition:
+    transform 0.4s cubic-bezier(0.32, 0.72, 0, 1),
+    opacity 0.32s ease;
+}
+
+@media (max-width: 639px) {
+  .ppsheet-enter-from .project-preview-panel,
+  .ppsheet-leave-to .project-preview-panel {
+    transform: translateY(100%);
+  }
+}
+
+@media (min-width: 640px) {
+  .ppsheet-enter-active .project-preview-panel,
+  .ppsheet-leave-active .project-preview-panel {
+    transition:
+      transform 0.34s ease,
+      opacity 0.28s ease;
+  }
+
+  .ppsheet-enter-from .project-preview-panel,
+  .ppsheet-leave-to .project-preview-panel {
+    transform: translateY(14px) scale(0.97);
+    opacity: 0;
+  }
+}
+</style>
