@@ -170,17 +170,21 @@ onBeforeUnmount(() => {
     translate3d(min(4vw, 38px), 0, -980px)
     rotateY(26deg)
     scale3d(0.1, 0.1, 1);
-  filter: blur(14px) brightness(0.62) saturate(0.9);
+  /* Static “behind tire” look only — avoid animating blur in keyframes (very expensive). */
+  filter: blur(10px) brightness(0.62) saturate(0.9);
 }
 
+/* `filter` must stay `none` while open so base `.section-reveal` blur never wins after the keyframes end.
+   Keyframes still control blur for the first ~0.2s (animation overrides this rule while running). */
 .section-reveal--open {
   pointer-events: auto;
-  animation: tire-emerge-desktop 1.48s forwards;
+  filter: none;
+  animation: tire-emerge-desktop 1.35s forwards;
 }
 
 .section-reveal--closed {
   pointer-events: none;
-  animation: tire-retract-desktop 1.22s forwards;
+  animation: tire-retract-desktop 1.05s forwards;
 }
 
 /* Phones & tablets: 2D only — no perspective, blur, or huge Z (those tank compositing on smaller GPUs). */
@@ -201,11 +205,11 @@ onBeforeUnmount(() => {
   }
 }
 
-/* Door opens: slip from behind tire at 0.1 → then grow in view */
+/* Door opens: slip from behind tire — blur holds ~0.2s (14.81% of 1.35s), then sharp (filter none). */
 @keyframes tire-emerge-desktop {
   0% {
     opacity: 0;
-    filter: blur(14px) brightness(0.62);
+    filter: blur(8px) brightness(0.75);
     transform:
       perspective(1100px)
       translate3d(min(4vw, 38px), 0, -980px)
@@ -213,12 +217,37 @@ onBeforeUnmount(() => {
       scale3d(0.1, 0.1, 1);
     animation-timing-function: cubic-bezier(0.22, 1, 0.38, 1);
   }
-  12% {
+  10% {
     opacity: 1;
+    filter: blur(8px) brightness(0.75);
+    transform:
+      perspective(1100px)
+      translate3d(min(4vw, 38px), 0, -980px)
+      rotateY(26deg)
+      scale3d(0.1, 0.1, 1);
+  }
+  /* 0.2s / 1.35s ≈ 14.81% — end of blur window */
+  14.81% {
+    opacity: 1;
+    filter: blur(8px) brightness(0.75);
+    transform:
+      perspective(1100px)
+      translate3d(min(4vw, 38px), 0, -980px)
+      rotateY(26deg)
+      scale3d(0.1, 0.1, 1);
+  }
+  15% {
+    opacity: 1;
+    filter: none;
+    transform:
+      perspective(1100px)
+      translate3d(min(4vw, 38px), 0, -980px)
+      rotateY(26deg)
+      scale3d(0.1, 0.1, 1);
   }
   40% {
     opacity: 1;
-    filter: blur(4px) brightness(0.9);
+    filter: none;
     transform:
       perspective(1100px)
       translate3d(0, 0, 0)
@@ -260,7 +289,7 @@ onBeforeUnmount(() => {
   }
 }
 
-/* Door closes: shrink in place, then tuck behind tire */
+/* Door closes: transform + opacity only until the last segment; blur only in final ~12%. */
 @keyframes tire-retract-desktop {
   0% {
     opacity: 1;
@@ -274,7 +303,6 @@ onBeforeUnmount(() => {
   }
   42% {
     opacity: 1;
-    filter: blur(4px) brightness(0.9);
     transform:
       perspective(1100px)
       translate3d(0, 0, 0)
@@ -282,12 +310,18 @@ onBeforeUnmount(() => {
       scale3d(0.1, 0.1, 1);
     animation-timing-function: cubic-bezier(0.22, 1, 0.38, 1);
   }
-  85% {
+  88% {
     opacity: 1;
+    filter: none;
+    transform:
+      perspective(1100px)
+      translate3d(min(4vw, 38px), 0, -980px)
+      rotateY(26deg)
+      scale3d(0.1, 0.1, 1);
   }
   100% {
     opacity: 0;
-    filter: blur(14px) brightness(0.62);
+    filter: blur(10px) brightness(0.62);
     transform:
       perspective(1100px)
       translate3d(min(4vw, 38px), 0, -980px)

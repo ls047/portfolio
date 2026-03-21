@@ -93,15 +93,14 @@ const readingLightSweepEnabled = computed(() => contentOpacity.value >= 1);
 let readingSweepRaf = 0;
 let readingSweepLastT = 0;
 let readingSweepLastSectionPoke = 0;
-/** Throttle DOM ink pass: desktop every 2nd frame, narrow / save-data fewer (cheaper than 60fps). */
+/** Throttle DOM ink pass: every 3rd frame by default (desktop used to be every 2nd — heavier than mobile and fought wheel scroll). */
 let readingInkFrameCounter = 0;
 
 function inkSyncStride(): number {
   if (typeof navigator !== 'undefined' && (navigator as Navigator & { connection?: { saveData?: boolean } }).connection?.saveData) {
     return 4;
   }
-  if (typeof window !== 'undefined' && window.innerWidth < 1024) return 3;
-  return 2;
+  return 3;
 }
 
 function readingLightSweepFrame(time: number) {
@@ -142,9 +141,8 @@ function readingLightSweepFrame(time: number) {
     if (readingInkFrameCounter % stride === 0) syncReadingVisualInks(root);
   }
 
-  /* Section chrome (--section-*) still on a lighter interval — binary flips, less critical every frame */
-  const sectionInterval =
-    typeof window !== 'undefined' && window.innerWidth < 1024 ? 220 : 180;
+  /* Section chrome (--section-*): same ~220ms cadence as narrow — desktop was 180ms and churned extra during scroll */
+  const sectionInterval = 220;
   if (time - readingSweepLastSectionPoke >= sectionInterval) {
     readingSweepLastSectionPoke = time;
     syncReadingSectionThemes();

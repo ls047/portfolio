@@ -38,10 +38,43 @@
             class="reading-head mb-3 text-base font-semibold sm:text-lg"
             v-reading-chars="'Favorite artist'"
           />
-          <p
-            class="reading-head text-lg font-semibold sm:text-xl"
-            v-reading-chars="about.favoriteArtist.name"
-          />
+          <div class="flex flex-wrap items-center gap-2 sm:gap-3">
+            <p
+              class="reading-head text-lg font-semibold sm:text-xl"
+              v-reading-chars="about.favoriteArtist.name"
+            />
+            <a
+              v-if="about.favoriteArtist.favoriteSongYoutubeUrl"
+              :href="about.favoriteArtist.favoriteSongYoutubeUrl"
+              target="_blank"
+              rel="noopener noreferrer"
+              class="about-song-cta reading-border group inline-flex min-h-10 cursor-pointer items-center gap-2 rounded-full border border-solid px-3 py-2 text-sm shadow-sm active:scale-[0.98] sm:min-h-9 sm:px-3.5 sm:py-1.5"
+              :title="
+                about.favoriteArtist.favoriteSong
+                  ? `Play “${about.favoriteArtist.favoriteSong}” on YouTube`
+                  : 'Open on YouTube'
+              "
+              :aria-label="
+                about.favoriteArtist.favoriteSong
+                  ? `Open “${about.favoriteArtist.favoriteSong}” on YouTube`
+                  : 'Open favorite song on YouTube'
+              "
+            >
+              <span
+                class="reading-icon opacity-90"
+                aria-hidden="true"
+              >
+                <AppIcon
+                  name="icon-[heroicons-outline--musical-note]"
+                  :size="1.125"
+                />
+              </span>
+              <span
+                class="reading-link whitespace-nowrap font-semibold"
+                v-reading-chars="'Listen'"
+              />
+            </a>
+          </div>
           <p
             v-if="about.favoriteArtist.genres"
             class="reading-muted mt-2 max-w-prose text-pretty text-sm leading-relaxed sm:text-base"
@@ -98,6 +131,7 @@
 <script setup lang="ts">
 import type { CvAboutMe } from '@/data/cv';
 import { sectionContentClass, sectionRootClass } from '@/constants/sectionLayout';
+import AppIcon from '@/components/global/AppIcon.vue';
 
 defineProps<{
   about: CvAboutMe;
@@ -110,3 +144,31 @@ function clampMastery(n: number): number {
   return Math.max(0, Math.min(100, Math.round(n)));
 }
 </script>
+
+<style scoped>
+/* Same section theme as Contact cards: --section-chip-bg / --section-divider from useReadingContrast. */
+.about-song-cta {
+  text-decoration: none;
+  background: color-mix(in srgb, var(--section-chip-bg, rgba(0, 0, 0, 0.08)) 42%, transparent);
+  transition:
+    transform 0.2s ease,
+    box-shadow 0.2s ease,
+    background-color 0.55s cubic-bezier(0.22, 1, 0.36, 1),
+    border-color 0.55s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .about-song-cta:hover {
+    transform: translateY(-1px);
+    background: color-mix(in srgb, var(--section-chip-bg, rgba(0, 0, 0, 0.08)) 62%, transparent);
+    box-shadow:
+      0 10px 28px rgba(0, 0, 0, 0.1),
+      0 0 0 1px var(--reading-border-sync, var(--section-divider));
+  }
+}
+
+.about-song-cta:focus-visible {
+  outline: 2px solid var(--section-link, currentColor);
+  outline-offset: 3px;
+}
+</style>

@@ -69,6 +69,10 @@ export interface CvAboutMe {
     name: string;
     /** e.g. genres or why you like them */
     genres?: string;
+    /** Track title (shown for accessibility / optional label). */
+    favoriteSong?: string;
+    /** Opens in a new tab when the user taps the music icon. */
+    favoriteSongYoutubeUrl?: string;
   };
   /** Self-assessed comfort with games or roles (same 0–100 scale as Skills). */
   gamingSkills: CvSkillItem[];
@@ -107,6 +111,8 @@ export const cvData: CvData = {
     favoriteArtist: {
       name: 'The Weeknd',
       genres: 'R&B, synth-pop — cinematic production and hooks that stick.',
+      favoriteSong: "Creepin'",
+      favoriteSongYoutubeUrl: 'https://www.youtube.com/watch?v=6DWjiWEmxME',
     },
     gamingSkills: [
       { name: 'Boss Fights', mastery: 99 },
