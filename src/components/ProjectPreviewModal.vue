@@ -2,7 +2,7 @@
   <Teleport to="body">
     <div
       v-if="project"
-      class="project-preview-root fixed inset-0 z-[220] flex justify-center max-sm:items-end sm:items-center sm:p-4"
+      class="project-preview-root fixed inset-0 z-[2147483647] flex justify-center max-sm:items-end sm:items-center sm:p-4"
       role="dialog"
       aria-modal="true"
       :aria-labelledby="titleId"
@@ -125,7 +125,7 @@
 
     <div
       v-if="project && showOrgSourceDialog"
-      class="fixed inset-0 z-[240] flex items-center justify-center p-4 sm:p-6"
+      class="fixed inset-0 z-[2147483647] flex items-center justify-center p-4 sm:p-6"
       role="dialog"
       aria-modal="true"
       aria-labelledby="org-source-dialog-title"

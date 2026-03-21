@@ -12,9 +12,9 @@
     </DefaultLayout>
     <AppToast v-if="homeRouteReady" :toasts="toasts" @remove="removeToast" />
   </template>
-  <!-- Above game loader (z-index 2147483000) so mute is always reachable -->
+  <!-- Above game loader (z-index 2147483000), below project preview modal (2147483647) -->
   <SoundToggleButton
-    class="pointer-events-auto fixed top-[calc(max(1.95rem,env(safe-area-inset-top,0px))+0.875rem)] right-[max(0.75rem,env(safe-area-inset-right,0))] left-auto z-[2147483647]"
+    class="pointer-events-auto fixed top-[calc(max(1.95rem,env(safe-area-inset-top,0px))+0.875rem)] right-[max(0.75rem,env(safe-area-inset-right,0))] left-auto z-[2147483646]"
   />
 </template>
 
