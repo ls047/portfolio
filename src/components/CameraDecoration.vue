@@ -95,6 +95,9 @@
   /** PTZ head from GLB (`cam_01`); rotation aims at reading-light center in viewport space. */
   let cctvHeadRef: THREE.Object3D | null = null;
   let frameId = 0;
+  /** ~30fps cap — small rail canvas doesn’t need full 60fps GL + getBoundingClientRect. */
+  let lastCctvRenderMs = 0;
+  const CCTV_RENDER_MIN_MS = 33;
   let resizeObs: ResizeObserver | null = null;
   /** False during intro (camera rail hidden) — keep rAF but skip draws to avoid extra GPU while car intro runs. */
   let tickRenderEnabled = false;
@@ -157,6 +160,10 @@
     frameId = requestAnimationFrame(tickThree);
     if (!renderer || !scene || !perspectiveCam) return;
     if (!tickRenderEnabled) return;
+
+    const now = typeof performance !== 'undefined' ? performance.now() : 0;
+    if (now - lastCctvRenderMs < CCTV_RENDER_MIN_MS) return;
+    lastCctvRenderMs = now;
 
     const { targetY, targetX } = aimRotationFromReadingLight();
     const head = cctvHeadRef;

@@ -49,11 +49,13 @@ function applySectionTheme(section: HTMLElement, onLight: boolean) {
 
 export function useReadingContrast(scrollContainerRef: Ref<HTMLElement | null>): {
   forceReadingUpdate: () => void;
+  /** Section-level --section-* only (no per-word ink). Use when ink runs elsewhere every frame. */
+  syncReadingSectionThemes: () => void;
 } {
   let cleanup: (() => void) | undefined;
   let rafId = 0;
 
-  function update() {
+  function updateSectionThemesOnly() {
     if (typeof document !== 'undefined' && document.hidden) return;
 
     const root = scrollContainerRef.value;
@@ -100,7 +102,11 @@ export function useReadingContrast(scrollContainerRef: Ref<HTMLElement | null>):
       strength /= ys.length;
       applySectionTheme(section, strength > READING_LIGHT_THRESHOLD);
     });
-    /* Ink must run after theme so --reading-ink-sync matches the same geometry pass */
+  }
+
+  function update() {
+    updateSectionThemesOnly();
+    /* Ink after section vars so non-v-reading chrome and reading layers stay consistent */
     syncInkImmediate();
   }
 
@@ -178,5 +184,5 @@ export function useReadingContrast(scrollContainerRef: Ref<HTMLElement | null>):
     cleanup?.();
   });
 
-  return { forceReadingUpdate };
+  return { forceReadingUpdate, syncReadingSectionThemes: updateSectionThemesOnly };
 }

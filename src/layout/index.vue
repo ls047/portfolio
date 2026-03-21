@@ -48,6 +48,7 @@ import {
   readingLightSweepPhase,
   READING_LIGHT_SWEEP_SPEED_RAD_S,
 } from '../utils/readingLightSweep';
+import { syncReadingVisualInks } from '../utils/syncReadingVisualInks';
 /** Own chunk: defers CCTV Three.js + GLTF path until layout mounts (after loader), trimming initial JS heap. */
 const CameraDecoration = defineAsyncComponent(() => import('../components/CameraDecoration.vue'));
 import IntroNarrativeOverlay from '../components/IntroNarrativeOverlay.vue';
@@ -56,7 +57,7 @@ const canvasContainer = ref<HTMLElement | null>(null);
 const contentOverlayRef = ref<HTMLElement | null>(null);
 
 const { contentOpacity, introPhase, driftProgress, bootLinesRevealed } = useCarIntro(canvasContainer);
-const { forceReadingUpdate } = useReadingContrast(contentOverlayRef);
+const { forceReadingUpdate, syncReadingSectionThemes } = useReadingContrast(contentOverlayRef);
 const contentReadyForAudio = computed(() => contentOpacity.value >= 1);
 useScrollBackgroundAudio(contentOverlayRef, { ready: contentReadyForAudio });
 
@@ -90,7 +91,9 @@ const readingLightSweepEnabled = computed(() => contentOpacity.value >= 1);
 
 let readingSweepRaf = 0;
 let readingSweepLastT = 0;
-let readingSweepLastInkPoke = 0;
+let readingSweepLastSectionPoke = 0;
+/** Halves per-frame getBoundingClientRect + style churn on `.reading-word` (still ~30fps ink). */
+let readingInkFrameParity = 0;
 
 function readingLightSweepFrame(time: number) {
   readingSweepRaf = requestAnimationFrame(readingLightSweepFrame);
@@ -98,14 +101,14 @@ function readingLightSweepFrame(time: number) {
     readingSweepLastT = 0;
     return;
   }
-  paintReadingLightCssVars();
 
   const reduceMotion =
     typeof window !== 'undefined' &&
     window.matchMedia('(prefers-reduced-motion: reduce)').matches;
   if (reduceMotion) {
-    if (time - readingSweepLastInkPoke >= 480) {
-      readingSweepLastInkPoke = time;
+    paintReadingLightCssVars();
+    if (time - readingSweepLastSectionPoke >= 480) {
+      readingSweepLastSectionPoke = time;
       forceReadingUpdate();
     }
     return;
@@ -116,11 +119,20 @@ function readingLightSweepFrame(time: number) {
   readingSweepLastT = time;
   readingLightSweepPhase.value += READING_LIGHT_SWEEP_SPEED_RAD_S * dt;
 
-  const inkInterval =
-    typeof window !== 'undefined' && window.innerWidth < 1024 ? 380 : 280;
-  if (time - readingSweepLastInkPoke >= inkInterval) {
-    readingSweepLastInkPoke = time;
-    forceReadingUpdate();
+  /* After phase: paint every frame; ink every other frame (~30fps) — full DOM ink pass is costly at 60fps. */
+  paintReadingLightCssVars();
+  const root = contentOverlayRef.value;
+  if (root) {
+    readingInkFrameParity ^= 1;
+    if (readingInkFrameParity === 0) syncReadingVisualInks(root);
+  }
+
+  /* Section chrome (--section-*) still on a lighter interval — binary flips, less critical every frame */
+  const sectionInterval =
+    typeof window !== 'undefined' && window.innerWidth < 1024 ? 220 : 180;
+  if (time - readingSweepLastSectionPoke >= sectionInterval) {
+    readingSweepLastSectionPoke = time;
+    syncReadingSectionThemes();
   }
 }
 
@@ -210,8 +222,6 @@ watch(contentOpacity, (opacity) => {
   scroll-behavior: auto;
   scrollbar-width: none;
   -ms-overflow-style: none;
-  /* Own layer: scroll + backdrop don’t pull the whole page into repaint as often */
-  isolation: isolate;
 }
 
 .content-overlay.content-scroll::-webkit-scrollbar {
@@ -317,21 +327,24 @@ watch(contentOpacity, (opacity) => {
   }
 }
 
-/* Narrow viewports: longer ink blend so grays track the bottom glow without stepping */
+/*
+ * Narrow viewports: slightly softer section chrome; per-word ink stays short so scroll + sweep
+ * updates (60fps) don’t feel “muddy” from long CSS interpolation.
+ */
 @media (max-width: 1023px) {
   .content-overlay :deep(.reading-head),
   .content-overlay :deep(.reading-body),
   .content-overlay :deep(.reading-muted),
   .content-overlay :deep(.reading-subtle),
   .content-overlay :deep(.reading-link) {
-    transition-duration: 0.42s !important;
+    transition-duration: 0.3s !important;
     transition-timing-function: cubic-bezier(0.25, 0.85, 0.4, 1) !important;
   }
 
   .content-overlay :deep(.reading-word),
   .content-overlay :deep(.reading-icon) {
-    transition-duration: 0.32s !important;
-    transition-timing-function: cubic-bezier(0.28, 0.88, 0.42, 1) !important;
+    transition-duration: 0.14s !important;
+    transition-timing-function: cubic-bezier(0.22, 1, 0.36, 1) !important;
   }
 }
 </style>

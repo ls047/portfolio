@@ -75,9 +75,26 @@ export function useScrollBackgroundAudio(scrollRef: Ref<HTMLElement | null>, opt
     rafId = 0;
   }
 
+  /** Only keep a rAF loop while volumes are ramping — idle was ~60fps forever after unlock. */
+  function needsVolumeTick(): boolean {
+    if (disposed) return false;
+    if (ambient && Math.abs(ambientVolTarget - ambient.volume) > 0.0015) return true;
+    if (scrollSfx) {
+      if (Math.abs(scrollSfxVolTarget - scrollSfx.volume) > 0.0015) return true;
+      if (scrollSfxVolTarget > 0.04 && scrollSfx.paused) return true;
+    }
+    return false;
+  }
+
+  function ensureTick() {
+    if (disposed || reduceMotion) return;
+    if (!needsVolumeTick()) return;
+    if (!rafId) rafId = requestAnimationFrame(tick);
+  }
+
   function tick() {
     if (disposed) return;
-    rafId = requestAnimationFrame(tick);
+    rafId = 0;
 
     if (ambient) {
       const d = ambientVolTarget - ambient.volume;
@@ -99,6 +116,10 @@ export function useScrollBackgroundAudio(scrollRef: Ref<HTMLElement | null>, opt
         scrollSfx.currentTime = 0;
       }
     }
+
+    if (needsVolumeTick()) {
+      rafId = requestAnimationFrame(tick);
+    }
   }
 
   function scheduleScrollIdle() {
@@ -117,7 +138,7 @@ export function useScrollBackgroundAudio(scrollRef: Ref<HTMLElement | null>, opt
       ambientVolTarget = AMBIENT_VOL;
       void ambient?.play().catch(() => {});
     }
-    if (!rafId) tick();
+    ensureTick();
   }
 
   function onScroll() {
@@ -145,6 +166,7 @@ export function useScrollBackgroundAudio(scrollRef: Ref<HTMLElement | null>, opt
         idleTimer = null;
       }
     }
+    ensureTick();
   }
 
   function onVisibility() {
@@ -163,7 +185,7 @@ export function useScrollBackgroundAudio(scrollRef: Ref<HTMLElement | null>, opt
       initElements();
       ambientVolTarget = AMBIENT_VOL;
       void ambient?.play().catch(() => {});
-      if (!rafId) tick();
+      ensureTick();
     } else if (!isReady) {
       ambientVolTarget = 0;
     } else if (isReady && unlocked && siteSoundMuted.value) {
@@ -171,6 +193,7 @@ export function useScrollBackgroundAudio(scrollRef: Ref<HTMLElement | null>, opt
       scrollSfxVolTarget = 0;
       ambient?.pause();
       scrollSfx?.pause();
+      ensureTick();
     }
   });
 
@@ -181,11 +204,12 @@ export function useScrollBackgroundAudio(scrollRef: Ref<HTMLElement | null>, opt
       scrollSfxVolTarget = 0;
       ambient?.pause();
       scrollSfx?.pause();
+      ensureTick();
     } else if (unlocked && ready.value) {
       initElements();
       ambientVolTarget = AMBIENT_VOL;
       void ambient?.play().catch(() => {});
-      if (!rafId) tick();
+      ensureTick();
     }
   });
 
