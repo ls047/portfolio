@@ -22,6 +22,9 @@
         />
       </SectionReveal>
       <SectionReveal>
+        <AboutMeSection :about="cvData.aboutMe" />
+      </SectionReveal>
+      <SectionReveal>
         <ContactSection
           :phone="cvData.me.phone"
           :email="cvData.me.email"
@@ -39,6 +42,7 @@ import { useAppConfig } from '../composables/useAppConfig';
 import { cvData } from '../data/cv';
 import SectionReveal from '../components/SectionReveal.vue';
 import MeSection from '../components/sections/MeSection.vue';
+import AboutMeSection from '../components/sections/AboutMeSection.vue';
 import SkillsSection from '../components/sections/SkillsSection.vue';
 import ProjectsSection from '../components/sections/ProjectsSection.vue';
 import ExperiencesSection from '../components/sections/ExperiencesSection.vue';

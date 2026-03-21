@@ -60,8 +60,23 @@ export interface CvLink {
   url: string;
 }
 
+/** Personal interests: hobbies, music, gaming — shown in the About me section. */
+export interface CvAboutMe {
+  /** Optional one-liner under the heading. */
+  intro?: string;
+  hobbies: string[];
+  favoriteArtist: {
+    name: string;
+    /** e.g. genres or why you like them */
+    genres?: string;
+  };
+  /** Self-assessed comfort with games or roles (same 0–100 scale as Skills). */
+  gamingSkills: CvSkillItem[];
+}
+
 export interface CvData {
   me: CvMe;
+  aboutMe: CvAboutMe;
   experiences: CvExperience[];
   education: CvEducation;
   projects: CvProject[];
@@ -78,6 +93,27 @@ export const cvData: CvData = {
     phone: '+964 7884242014',
     email: 'alikibrahim190@gmail.com',
     summary: 'Front-end developer crafting pixel-perfect, unique user experiences with Vue.js and modern web technologies.',
+  },
+  aboutMe: {
+    intro: 'Outside of code: what I listen to, play, and unwind with.',
+    hobbies: [
+      'Photography & street shots',
+      'Synthwave & film scores',
+      'Coffee and late-night builds',
+      'Retro hardware & keyboards',
+      'Energy drinks',
+      'Singing in the shower',
+    ],
+    favoriteArtist: {
+      name: 'The Weeknd',
+      genres: 'R&B, synth-pop — cinematic production and hooks that stick.',
+    },
+    gamingSkills: [
+      { name: 'Boss Fights', mastery: 99 },
+      { name: 'FPS / aim & positioning', mastery: 78 },
+      { name: 'MOBA / map awareness', mastery: 72 },
+      { name: 'Strategy / resource planning', mastery: 68 },
+    ],
   },
   experiences: [
     {
