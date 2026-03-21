@@ -1,9 +1,8 @@
 /**
- * Skip heavy WebGL (car + CCTV preload) for paths where Lighthouse / low-end devices
- * pay too much in TBT/LCP. Wide desktop keeps the full intro; below-lg viewports skip unless ?full=1.
+ * Skip heavy WebGL (car + CCTV preload) only when the user opts out or the device/network
+ * clearly can’t handle it well (reduced motion, save-data, 2G).
  *
- * ?full=1 — force full 3D intro even on mobile.
- * ?lite=1 — force light path even on desktop (testing).
+ * ?lite=1 — force light path (no car) for testing or low-end checks.
  */
 
 export function shouldSkipHeavyIntro(): boolean {
@@ -11,7 +10,6 @@ export function shouldSkipHeavyIntro(): boolean {
 
   try {
     const q = new URLSearchParams(window.location.search);
-    if (q.get('full') === '1') return false;
     if (q.get('lite') === '1') return true;
   } catch {
     /* ignore */
@@ -26,11 +24,6 @@ export function shouldSkipHeavyIntro(): boolean {
   if (conn?.saveData) return true;
   const et = conn?.effectiveType;
   if (et === 'slow-2g' || et === '2g') return true;
-
-  /* Phone + tablet (below lg): car+GLB+CCTV dominate TBT/LCP on Lighthouse & real devices. ?full=1 for full 3D. */
-  if (window.matchMedia('(max-width: 1023px)').matches) {
-    return true;
-  }
 
   return false;
 }
