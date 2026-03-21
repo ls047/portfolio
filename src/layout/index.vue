@@ -92,11 +92,24 @@ const readingLightSweepEnabled = computed(() => contentOpacity.value >= 1);
 let readingSweepRaf = 0;
 let readingSweepLastT = 0;
 let readingSweepLastSectionPoke = 0;
-/** Halves per-frame getBoundingClientRect + style churn on `.reading-word` (still ~30fps ink). */
-let readingInkFrameParity = 0;
+/** Throttle DOM ink pass: desktop every 2nd frame, narrow / save-data fewer (cheaper than 60fps). */
+let readingInkFrameCounter = 0;
+
+function inkSyncStride(): number {
+  if (typeof navigator !== 'undefined' && (navigator as Navigator & { connection?: { saveData?: boolean } }).connection?.saveData) {
+    return 4;
+  }
+  if (typeof window !== 'undefined' && window.innerWidth < 1024) return 3;
+  return 2;
+}
 
 function readingLightSweepFrame(time: number) {
+  if (typeof document !== 'undefined' && document.hidden) {
+    readingSweepRaf = 0;
+    return;
+  }
   readingSweepRaf = requestAnimationFrame(readingLightSweepFrame);
+
   if (!readingLightSweepEnabled.value) {
     readingSweepLastT = 0;
     return;
@@ -119,12 +132,13 @@ function readingLightSweepFrame(time: number) {
   readingSweepLastT = time;
   readingLightSweepPhase.value += READING_LIGHT_SWEEP_SPEED_RAD_S * dt;
 
-  /* After phase: paint every frame; ink every other frame (~30fps) — full DOM ink pass is costly at 60fps. */
+  /* After phase: paint every frame; ink on a stride (see `inkSyncStride`) — full DOM pass is costly. */
   paintReadingLightCssVars();
   const root = contentOverlayRef.value;
   if (root) {
-    readingInkFrameParity ^= 1;
-    if (readingInkFrameParity === 0) syncReadingVisualInks(root);
+    readingInkFrameCounter += 1;
+    const stride = inkSyncStride();
+    if (readingInkFrameCounter % stride === 0) syncReadingVisualInks(root);
   }
 
   /* Section chrome (--section-*) still on a lighter interval — binary flips, less critical every frame */
@@ -140,14 +154,26 @@ function onWindowResizeForLight() {
   if (contentOpacity.value >= 1) paintReadingLightCssVars();
 }
 
+function onDocumentVisibilityForSweep() {
+  if (typeof document === 'undefined') return;
+  if (document.hidden) {
+    cancelAnimationFrame(readingSweepRaf);
+    readingSweepRaf = 0;
+  } else if (!readingSweepRaf) {
+    readingSweepRaf = requestAnimationFrame(readingLightSweepFrame);
+  }
+}
+
 onMounted(() => {
   readingSweepRaf = requestAnimationFrame(readingLightSweepFrame);
   window.addEventListener('resize', onWindowResizeForLight, { passive: true });
+  document.addEventListener('visibilitychange', onDocumentVisibilityForSweep);
 });
 
 onBeforeUnmount(() => {
   cancelAnimationFrame(readingSweepRaf);
   window.removeEventListener('resize', onWindowResizeForLight);
+  document.removeEventListener('visibilitychange', onDocumentVisibilityForSweep);
 });
 
 const cameraRailVisible = ref(false);

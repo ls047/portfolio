@@ -31,7 +31,12 @@ export interface CvProject {
   image?: string;
   /** Optional larger or alternate image in the modal (defaults to `image`). */
   modalImage?: string;
+  /** Public live app / interface URL. */
   link?: string;
+  /** Public GitHub repository — hidden when `organizationProject` is true. */
+  githubUrl?: string;
+  /** Org/client work: source is not public; modal shows an explanation instead of GitHub. */
+  organizationProject?: boolean;
 }
 
 /** Single skill with mastery 0–100 for progress display */
@@ -103,6 +108,8 @@ export const cvData: CvData = {
         'Built as a focused security-minded frontend: generate passwords, scan links before you open them, and use QR flows where sharing secrets safely matters. The UI keeps dense features approachable with clear steps and Tailwind-driven layout.',
       tech: ['Vue.js', 'Tailwind CSS'],
       image: '/images/hashilo.png',
+      link: 'https://hashillo.example.com',
+      githubUrl: 'https://github.com/your-username/hashillo',
     },
     {
       name: 'IQ Test System',
@@ -111,6 +118,7 @@ export const cvData: CvData = {
         'End-to-end flows for ministry-branded IQ testing: authentication, account lifecycle, timed or structured tests, and dashboards for recent vs historical results so administrators and participants always see consistent state.',
       tech: ['Vue.js', 'Tailwind CSS'],
       image: '/images/iq-test.png',
+      organizationProject: true,
     },
     {
       name: 'NASTYA DMS',
@@ -119,6 +127,7 @@ export const cvData: CvData = {
         'Enterprise-scale document tooling: classify archives, preview files in-app, trigger email workflows, and download with full metadata. A global theme picker recolors the entire app—62+ screens stayed consistent through shared layout and Tailwind tokens.',
       tech: ['Vue.js', 'Tailwind CSS'],
       image: '/images/nastya-DMS.png',
+      organizationProject: true,
     },
     {
       name: 'NASTYA FLOW',
@@ -127,6 +136,7 @@ export const cvData: CvData = {
         'Process visibility for accounting teams: every matter moves from intake through approval gates with manager oversight. Role-aware views and a system-wide theme picker keep long sessions readable for staff who live in the tool daily.',
       tech: ['Vue.js', 'Tailwind CSS'],
       image: '/images/nastya-flow.png',
+      organizationProject: true,
     },
     {
       name: 'pad.moys',
@@ -135,6 +145,7 @@ export const cvData: CvData = {
         'Public-facing ministry portal with authenticated admin tools: publish news and events, load dynamic sections without full reloads, and maintain content through a structured dashboard backed by REST APIs.',
       tech: ['Vue.js', 'Tailwind CSS', 'REST API'],
       image: '/images/pad-moys.png',
+      organizationProject: true,
     },
     {
       name: 'SKY Reed Diffuser',
@@ -151,6 +162,7 @@ export const cvData: CvData = {
         'Long-horizon planning tools with secure access: dynamic data surfaces, admin dashboards for structured updates, and REST-backed workflows so stakeholders work from a single source of truth.',
       tech: ['Vue.js', 'Tailwind CSS', 'REST API'],
       image: '/images/fyp.jpg',
+      organizationProject: true,
     },
     {
       name: 'SuperHackathon Platform',
@@ -158,6 +170,8 @@ export const cvData: CvData = {
       detail:
         'Event operations in one place: contestant auth, QR check-in materials, acceptance and judging views, timed questions, and an embedded coding surface so teams never leave the platform mid-competition.',
       tech: ['Vue.js', 'Tailwind CSS', 'WebSocket'],
+      link: 'https://superhackathon.example.com',
+      githubUrl: 'https://github.com/your-username/superhackathon-2025',
     },
     {
       name: 'Nova Dev Sprint',
@@ -165,6 +179,8 @@ export const cvData: CvData = {
       detail:
         'Iteration on the hackathon formula: registration and accounts, live messaging, QR utilities, and a tighter coding experience with WebSocket-backed real-time updates where it counts.',
       tech: ['Vue.js', 'Tailwind CSS', 'WebSocket'],
+      link: 'https://nova-sprint.example.com',
+      githubUrl: 'https://github.com/your-username/nova-dev-sprint',
     },
     {
       name: 'tic tac toe',
@@ -172,6 +188,8 @@ export const cvData: CvData = {
       detail:
         'Real-time matches over WebSockets with a minimal Tailwind UI—quick rounds, clear board state, and no page reloads between moves.',
       tech: ['Vue.js', 'Tailwind CSS', 'WebSocket'],
+      link: 'https://tic-tac-toe.example.com',
+      githubUrl: 'https://github.com/your-username/tic-tac-toe',
     },
     {
       name: 'siantafic affairs',
@@ -179,6 +197,7 @@ export const cvData: CvData = {
       detail:
         'Administrative workflows for university affairs: Vue + Tailwind interfaces for staff to track and update cases in one internal system.',
       tech: ['Vue.js', 'Tailwind CSS'],
+      organizationProject: true,
     },
     {
       name: 'univercity management system',
@@ -186,6 +205,7 @@ export const cvData: CvData = {
       detail:
         'Campus operations support: lectures, students, and assignment hand-ins—REST-backed screens so faculty and students share the same structured data.',
       tech: ['Vue.js', 'Tailwind CSS', 'REST API'],
+      organizationProject: true,
     },
   ],
   skills: [  

@@ -62,10 +62,7 @@ function rebuild(el: HTMLElement, fullText: string): void {
 
   requestAnimationFrame(() => {
     const scrollRoot = el.closest('.content-scroll') as HTMLElement | null;
-    if (scrollRoot) {
-      syncReadingVisualInks(scrollRoot);
-      requestAnimationFrame(() => syncReadingVisualInks(scrollRoot));
-    }
+    if (scrollRoot) syncReadingVisualInks(scrollRoot);
   });
 }
 

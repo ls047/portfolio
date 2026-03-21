@@ -81,18 +81,80 @@
                 {{ tech }}
               </span>
             </div>
-            <a
-              v-if="project.link"
-              :href="project.link"
-              target="_blank"
-              rel="noopener noreferrer"
-              class="mt-1 flex w-full items-center justify-center gap-2 rounded-xl bg-sky-500/15 px-4 py-3.5 text-sm font-semibold text-sky-300 ring-1 ring-sky-400/35 transition hover:bg-sky-500/25 hover:text-sky-200 active:scale-[0.99] sm:mt-2 sm:inline-flex sm:w-auto sm:justify-start sm:rounded-lg sm:bg-transparent sm:px-0 sm:py-2 sm:font-medium sm:ring-0 sm:hover:underline"
+
+            <div
+              v-if="hasAnyProjectLinks"
+              class="mt-3 flex flex-col gap-2.5 sm:mt-4 sm:flex-row sm:flex-wrap sm:items-center"
             >
-              Open live project
-              <span aria-hidden="true">↗</span>
-            </a>
+              <a
+                v-if="project.link"
+                :href="project.link"
+                target="_blank"
+                rel="noopener noreferrer"
+                class="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-sky-500/15 px-4 py-3.5 text-sm font-semibold text-sky-300 ring-1 ring-sky-400/35 transition hover:bg-sky-500/25 hover:text-sky-200 active:scale-[0.99] sm:w-auto sm:justify-center sm:rounded-lg sm:px-4 sm:py-2.5"
+              >
+                <AppIcon name="icon-[heroicons-outline--globe-alt]" :size="1.125" class="shrink-0" />
+                Open live app
+                <span aria-hidden="true">↗</span>
+              </a>
+              <a
+                v-if="project.githubUrl && !project.organizationProject"
+                :href="project.githubUrl"
+                target="_blank"
+                rel="noopener noreferrer"
+                class="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-white/10 px-4 py-3.5 text-sm font-semibold text-white ring-1 ring-white/15 transition hover:bg-white/15 active:scale-[0.99] sm:w-auto sm:justify-center sm:rounded-lg sm:px-4 sm:py-2.5"
+              >
+                <AppIcon name="icon-[simple-icons--github]" :size="1.125" class="shrink-0" />
+                View on GitHub
+                <span aria-hidden="true">↗</span>
+              </a>
+              <button
+                v-if="project.organizationProject"
+                type="button"
+                class="inline-flex w-full cursor-pointer items-center justify-center gap-2 rounded-xl bg-white/8 px-4 py-3.5 text-sm font-semibold text-neutral-300 ring-1 ring-white/12 transition hover:bg-white/12 hover:text-white active:scale-[0.99] sm:w-auto sm:justify-center sm:rounded-lg sm:px-4 sm:py-2.5"
+                @click="showOrgSourceDialog = true"
+              >
+                <AppIcon name="icon-[simple-icons--github]" :size="1.125" class="shrink-0 opacity-60" />
+                Source code
+              </button>
+            </div>
           </div>
         </div>
+      </div>
+    </div>
+
+    <div
+      v-if="project && showOrgSourceDialog"
+      class="fixed inset-0 z-[240] flex items-center justify-center p-4 sm:p-6"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="org-source-dialog-title"
+    >
+      <div
+        class="absolute inset-0 bg-black/70 backdrop-blur-[2px]"
+        aria-hidden="true"
+        @click="showOrgSourceDialog = false"
+      />
+      <div
+        class="relative max-w-md rounded-2xl border border-white/12 bg-neutral-950 px-5 py-5 shadow-2xl sm:px-6 sm:py-6"
+        @click.stop
+      >
+        <h3
+          id="org-source-dialog-title"
+          class="font-semibold text-white"
+        >
+          Source not available
+        </h3>
+        <p class="mt-3 text-pretty text-sm leading-relaxed text-neutral-300">
+          Sorry — this project was built for an organization, so the source code isn’t publicly available.
+        </p>
+        <button
+          type="button"
+          class="mt-5 w-full rounded-xl bg-white/10 py-2.5 text-sm font-semibold text-white ring-1 ring-white/15 transition hover:bg-white/15 sm:w-auto sm:px-6"
+          @click="showOrgSourceDialog = false"
+        >
+          OK
+        </button>
       </div>
     </div>
   </Teleport>
@@ -116,13 +178,25 @@ const scrollContainerRef = inject<Ref<HTMLElement | null>>('scrollContainerRef')
 const titleId = 'project-preview-title';
 
 const heroFailed = ref(false);
+const showOrgSourceDialog = ref(false);
 
 watch(
   () => props.project,
   () => {
     heroFailed.value = false;
+    showOrgSourceDialog.value = false;
   }
 );
+
+const hasAnyProjectLinks = computed(() => {
+  const p = props.project;
+  if (!p) return false;
+  return Boolean(
+    p.link ||
+      (p.githubUrl && !p.organizationProject) ||
+      p.organizationProject
+  );
+});
 
 function resolveHeroUrl(p: CvProject): string {
   const raw = (p.modalImage ?? p.image)?.trim();
@@ -137,7 +211,13 @@ const heroSrc = computed(() => {
 });
 
 function onKeydown(e: KeyboardEvent) {
-  if (e.key === 'Escape' && props.project) emit('close');
+  if (e.key === 'Escape' && props.project) {
+    if (showOrgSourceDialog.value) {
+      showOrgSourceDialog.value = false;
+    } else {
+      emit('close');
+    }
+  }
 }
 
 const savedScrollOverflow = ref<string | null>(null);

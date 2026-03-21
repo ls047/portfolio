@@ -19,7 +19,7 @@
 </template>
 
 <script setup lang="ts">
-  import { ref, watch, nextTick, onBeforeUnmount } from 'vue';
+  import { ref, watch, nextTick, onMounted, onBeforeUnmount } from 'vue';
   import * as THREE from 'three';
   import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
   import { getLightCenterPx, getLightSweepBaseAndAmp } from '../utils/readingLight';
@@ -40,7 +40,8 @@
   const SWEEP_YAW_MAG = reduceMotion ? 0 : 0.38;
   const SWEEP_PITCH_MAG = reduceMotion ? 0 : 0.12;
   const AIM_PITCH_RANGE = reduceMotion ? 0.2 : 0.32;
-  const ROT_SMOOTH = reduceMotion ? 0.45 : 0.11;
+  /** Slightly higher than 60fps rAF — CCTV runs on a ~20Hz interval so each step covers more ground. */
+  const ROT_SMOOTH = reduceMotion ? 0.45 : 0.2;
 
   /**
    * Horizontal aim uses the same numbers as the radial gradient: u = (lx − baseX) / amp ≡ sin(phase).
@@ -94,10 +95,9 @@
   let modelRoot: THREE.Group | null = null;
   /** PTZ head from GLB (`cam_01`); rotation aims at reading-light center in viewport space. */
   let cctvHeadRef: THREE.Object3D | null = null;
-  let frameId = 0;
-  /** ~30fps cap — small rail canvas doesn’t need full 60fps GL + getBoundingClientRect. */
-  let lastCctvRenderMs = 0;
-  const CCTV_RENDER_MIN_MS = 33;
+  /** ~20fps — avoids 60fps rAF wakeups; decorative rail doesn’t need display sync. */
+  const CCTV_TICK_MS = 50;
+  let cctvIntervalId = 0;
   let resizeObs: ResizeObserver | null = null;
   /** False during intro (camera rail hidden) — keep rAF but skip draws to avoid extra GPU while car intro runs. */
   let tickRenderEnabled = false;
@@ -156,14 +156,9 @@
     renderer.setSize(rw, rh, false);
   }
 
-  function tickThree() {
-    frameId = requestAnimationFrame(tickThree);
+  function cctvRenderStep() {
     if (!renderer || !scene || !perspectiveCam) return;
     if (!tickRenderEnabled) return;
-
-    const now = typeof performance !== 'undefined' ? performance.now() : 0;
-    if (now - lastCctvRenderMs < CCTV_RENDER_MIN_MS) return;
-    lastCctvRenderMs = now;
 
     const { targetY, targetX } = aimRotationFromReadingLight();
     const head = cctvHeadRef;
@@ -176,6 +171,28 @@
     }
 
     renderer.render(scene, perspectiveCam);
+  }
+
+  function startCctvInterval() {
+    if (cctvIntervalId) return;
+    if (typeof document !== 'undefined' && document.hidden) return;
+    cctvIntervalId = window.setInterval(cctvRenderStep, CCTV_TICK_MS);
+  }
+
+  function stopCctvInterval() {
+    if (cctvIntervalId) {
+      clearInterval(cctvIntervalId);
+      cctvIntervalId = 0;
+    }
+  }
+
+  function onCctvTabVisibility() {
+    if (typeof document === 'undefined') return;
+    if (document.hidden) {
+      stopCctvInterval();
+    } else if (threeInited && tickRenderEnabled) {
+      startCctvInterval();
+    }
   }
 
   /** Dispose all GPU refs (geometries, every texture slot on materials) so GLB VRAM + retained textures drop. */
@@ -200,8 +217,7 @@
   }
 
   function teardownThree() {
-    cancelAnimationFrame(frameId);
-    frameId = 0;
+    stopCctvInterval();
     tickRenderEnabled = false;
     resizeObs?.disconnect();
     resizeObs = null;
@@ -284,7 +300,7 @@
 
     threeInited = true;
     tickRenderEnabled = props.visible;
-    tickThree();
+    startCctvInterval();
 
     try {
       await preloadCctvGlb();
@@ -363,7 +379,12 @@
     { immediate: true },
   );
 
+  onMounted(() => {
+    document.addEventListener('visibilitychange', onCctvTabVisibility);
+  });
+
   onBeforeUnmount(() => {
+    document.removeEventListener('visibilitychange', onCctvTabVisibility);
     teardownThree();
   });
 </script>
