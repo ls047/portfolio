@@ -45,9 +45,11 @@
             </div>
           </a>
           <a
-            :href="mailtoHref"
+            :href="gmailComposeHref"
             class="contact-card reading-border group"
-            :aria-label="`Send email to ${email}`"
+            target="_blank"
+            rel="noopener noreferrer"
+            :aria-label="`Open Gmail to email ${email}`"
           >
             <span
               class="contact-card-icon-well"
@@ -189,14 +191,12 @@ const props = defineProps<{
 /** Tel: URIs should avoid spaces for widest device support */
 const normalizedPhone = computed(() => props.phone.replace(/[\s-]/g, ''));
 
-/** Valid mailto: opens the user’s mail app (subject pre-filled). */
-const mailtoHref = computed(() => {
+/** Gmail web compose — recipient + subject pre-filled (opens in new tab). */
+const gmailComposeHref = computed(() => {
   const to = props.email.trim();
-  if (!to) return 'mailto:';
-  const query = new URLSearchParams({
-    subject: 'Hello - portfolio contact',
-  });
-  return `mailto:${to}?${query.toString()}`;
+  if (!to) return 'https://mail.google.com/mail/';
+  const su = encodeURIComponent('Hello - portfolio contact');
+  return `https://mail.google.com/mail/?view=cm&fs=1&to=${encodeURIComponent(to)}&su=${su}`;
 });
 </script>
 

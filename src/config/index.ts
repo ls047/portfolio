@@ -47,12 +47,19 @@ export const initializeConfig = (): void => {
     });
   }
 
-  // Register fonts
+  // Register fonts — idle so first Vue tick / route parse isn’t competing with FontFace decode (TBT)
   if (appConfig.typography.fonts) {
     appConfig.typography.fonts.forEach((font) => {
-      loadFont(font).catch((error) => {
-        console.error(`Failed to load font: ${font.name}`, error);
-      });
+      const run = () => {
+        loadFont(font).catch((error) => {
+          console.error(`Failed to load font: ${font.name}`, error);
+        });
+      };
+      if (typeof requestIdleCallback !== 'undefined') {
+        requestIdleCallback(run, { timeout: 3500 });
+      } else {
+        queueMicrotask(run);
+      }
     });
   }
 

@@ -10,9 +10,10 @@
 
     <div class="game-loader-inner">
       <div class="game-loader-brand">
-        <p id="game-loader-title" class="game-loader-name">
+        <!-- Large early text paint helps LCP settle on the loader instead of a late WebGL canvas. -->
+        <h1 id="game-loader-title" class="game-loader-name">
           {{ appTitle }}
-        </p>
+        </h1>
         <p class="game-loader-tagline">Portfolio</p>
       </div>
 
@@ -39,18 +40,19 @@
           <span class="game-loader-pct-value">{{ paddedPercent }}</span>
           <span class="game-loader-pct-suffix">%</span>
         </p>
-        <p v-if="!loadingComplete" class="game-loader-hint">Preparing experience</p>
-
-        <button
-          v-else
-          type="button"
-          class="game-loader-start"
-          @click="emit('start')"
-        >
-          <span class="game-loader-start-bg" aria-hidden="true" />
-          <span class="game-loader-start-label">Enter</span>
-          <span class="game-loader-start-arrow" aria-hidden="true">→</span>
-        </button>
+        <div class="game-loader-footer-body">
+          <p v-if="!loadingComplete" class="game-loader-hint">Preparing experience</p>
+          <button
+            v-else
+            type="button"
+            class="game-loader-start"
+            @click="emit('start')"
+          >
+            <span class="game-loader-start-bg" aria-hidden="true" />
+            <span class="game-loader-start-label">Enter</span>
+            <span class="game-loader-start-arrow" aria-hidden="true">→</span>
+          </button>
+        </div>
       </div>
     </div>
   </div>
@@ -143,6 +145,7 @@ const paddedPercent = computed(() =>
   position: relative;
   z-index: 1;
   width: min(100%, 26rem);
+  min-height: min(42vh, 20rem);
   padding: 2.25rem 2rem 2rem;
   text-align: center;
   border-radius: 1.25rem;
@@ -161,14 +164,31 @@ const paddedPercent = computed(() =>
   -webkit-backdrop-filter: blur(18px);
 }
 
+/* Backdrop blur is costly on mobile GPU; LCP paints sooner without it below lg. */
+@media (max-width: 1023px) {
+  .game-loader-inner {
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+  }
+}
+
 .game-loader-brand {
   margin-bottom: 1.75rem;
 }
 
+/* System stack first: webfonts must not block LCP paint on the loader title. */
 .game-loader-name {
   margin: 0;
-  font-family: var(--font-display), var(--font-secondary), system-ui, sans-serif;
-  font-size: clamp(1.35rem, 4.5vw, 1.65rem);
+  font-family:
+    system-ui,
+    -apple-system,
+    BlinkMacSystemFont,
+    'Segoe UI',
+    Roboto,
+    'Helvetica Neue',
+    Arial,
+    sans-serif;
+  font-size: clamp(1.75rem, 6.5vw, 2.35rem);
   font-weight: 600;
   letter-spacing: 0.06em;
   text-transform: uppercase;
@@ -178,6 +198,15 @@ const paddedPercent = computed(() =>
 
 .game-loader-tagline {
   margin: 0.35rem 0 0;
+  font-family:
+    system-ui,
+    -apple-system,
+    BlinkMacSystemFont,
+    'Segoe UI',
+    Roboto,
+    'Helvetica Neue',
+    Arial,
+    sans-serif;
   font-size: 0.7rem;
   font-weight: 600;
   letter-spacing: 0.38em;
@@ -247,13 +276,22 @@ const paddedPercent = computed(() =>
   justify-content: flex-start;
 }
 
+/* Fixed slot so hint ↔ Enter swap doesn’t change footer height (CLS). */
+.game-loader-footer-body {
+  min-height: 3.25rem;
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
 .game-loader-pct {
   margin: 0;
   display: flex;
   align-items: baseline;
   justify-content: center;
   gap: 0.15rem;
-  font-family: var(--font-mono), ui-monospace, 'SF Mono', Menlo, Monaco, Consolas, monospace;
+  font-family: ui-monospace, 'SF Mono', Menlo, Monaco, Consolas, 'Courier New', monospace;
 }
 
 .game-loader-pct-value {
@@ -286,7 +324,7 @@ const paddedPercent = computed(() =>
   align-items: center;
   justify-content: center;
   gap: 0.5rem;
-  margin-top: 0.35rem;
+  margin-top: 0;
   padding: 0.85rem 1.75rem;
   min-width: 11rem;
   font-family: inherit;

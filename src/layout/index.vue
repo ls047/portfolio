@@ -1,9 +1,9 @@
 <template>
   <div class="layout-container">
-    <!-- 3D Canvas - car intro (from useCarIntro) -->
+    <!-- 3D Canvas - car intro (from useCarIntro). contain: paint limits expensive repaints bleeding into LCP. -->
     <div
       ref="canvasContainer"
-      class="fixed inset-0 z-0 w-full h-full"
+      class="car-canvas-host fixed inset-0 z-0 w-full h-full"
     />
 
     <!-- Page content (radial backdrop); section bodies use SectionReveal genie -->
@@ -49,6 +49,7 @@ import {
   READING_LIGHT_SWEEP_SPEED_RAD_S,
 } from '../utils/readingLightSweep';
 import { syncReadingVisualInks } from '../utils/syncReadingVisualInks';
+import { shouldSkipHeavyIntro } from '../utils/perfSkip';
 /** Own chunk: defers CCTV Three.js + GLTF path until layout mounts (after loader), trimming initial JS heap. */
 const CameraDecoration = defineAsyncComponent(() => import('../components/CameraDecoration.vue'));
 import IntroNarrativeOverlay from '../components/IntroNarrativeOverlay.vue';
@@ -186,7 +187,8 @@ watch(contentOpacity, (opacity) => {
         forceReadingUpdate();
       });
     });
-    cameraRailVisible.value = true;
+    /* Second WebGL (CCTV) off on light path — same breakpoint as skipping car intro. */
+    cameraRailVisible.value = !shouldSkipHeavyIntro();
   } else {
     cameraRailVisible.value = false;
   }
@@ -198,6 +200,10 @@ watch(contentOpacity, (opacity) => {
   min-height: 100vh;
   overflow: hidden;
   position: relative;
+}
+
+.car-canvas-host {
+  contain: paint;
 }
 
 .content-overlay {

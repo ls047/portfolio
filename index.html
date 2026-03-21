@@ -4,15 +4,26 @@
     <meta charset="UTF-8" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <!-- Non-blocking: avoids render-blocking CSS on mobile Lighthouse (FCP/LCP/SI) -->
     <link
       href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500&family=JetBrains+Mono:wght@400;500&family=Orbitron:wght@400;600&display=swap"
       rel="stylesheet"
+      media="print"
+      onload="this.media='all'"
     />
+    <noscript>
+      <link
+        href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500&family=JetBrains+Mono:wght@400;500&family=Orbitron:wght@400;600&display=swap"
+        rel="stylesheet"
+      />
+    </noscript>
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-    <link rel="preload" href="/low-poly_cctv_camera.glb" as="fetch" crossorigin />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Ali Khalil</title>
     <style>
+      html {
+        scrollbar-gutter: stable;
+      }
       html,
       body {
         margin: 0;
@@ -26,10 +37,151 @@
         overflow-x: hidden;
         max-width: 100%;
       }
+      /*
+       * Pre-JS LCP: large title + card (system fonts only — no webfont wait).
+       * Mirrors AppGameLoader .game-loader-inner + heading to limit CLS when Vue mounts.
+       */
+      .boot-shell {
+        min-height: 100vh;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 1.25rem;
+        box-sizing: border-box;
+        background: #060606;
+        color: #e8e8e8;
+        -webkit-font-smoothing: antialiased;
+      }
+      .boot-shell-inner {
+        width: min(100%, 26rem);
+        min-height: min(42vh, 20rem);
+        padding: 2.25rem 2rem 2rem;
+        text-align: center;
+        border-radius: 1.25rem;
+        border: 1px solid rgba(255, 255, 255, 0.12);
+        background: linear-gradient(
+          160deg,
+          rgba(255, 255, 255, 0.07) 0%,
+          rgba(255, 255, 255, 0.02) 45%,
+          rgba(0, 0, 0, 0.2) 100%
+        );
+        box-shadow:
+          0 0 0 1px rgba(0, 0, 0, 0.35) inset,
+          0 24px 56px rgba(0, 0, 0, 0.45),
+          0 0 80px rgba(255, 255, 255, 0.04);
+      }
+      .boot-shell-brand {
+        margin-bottom: 1.75rem;
+      }
+      .boot-shell-title {
+        margin: 0;
+        font-family:
+          system-ui,
+          -apple-system,
+          BlinkMacSystemFont,
+          'Segoe UI',
+          Roboto,
+          'Helvetica Neue',
+          Arial,
+          sans-serif;
+        font-size: clamp(1.75rem, 6.5vw, 2.35rem);
+        font-weight: 600;
+        letter-spacing: 0.06em;
+        text-transform: uppercase;
+        color: #fafafa;
+        line-height: 1.2;
+      }
+      .boot-shell-tagline {
+        margin: 0.35rem 0 0;
+        font-size: 0.7rem;
+        font-weight: 600;
+        letter-spacing: 0.38em;
+        text-transform: uppercase;
+        color: rgba(255, 255, 255, 0.38);
+      }
+      /* Mirror AppGameLoader bar + footer so first Vue paint doesn’t resize the card (CLS). */
+      .boot-shell-bar-wrap {
+        margin-bottom: 1.25rem;
+      }
+      .boot-shell-bar-track {
+        height: 5px;
+        border-radius: 999px;
+        background: rgba(255, 255, 255, 0.06);
+        box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.5);
+      }
+      .boot-shell-footer {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 0.75rem;
+        min-height: 4.25rem;
+        justify-content: flex-start;
+      }
+      .boot-shell-pct {
+        margin: 0;
+        display: flex;
+        align-items: baseline;
+        justify-content: center;
+        gap: 0.15rem;
+        font-family: ui-monospace, 'SF Mono', Menlo, Monaco, Consolas, 'Courier New', monospace;
+      }
+      .boot-shell-pct-value {
+        font-size: 2.5rem;
+        font-weight: 300;
+        letter-spacing: 0.06em;
+        color: #fff;
+        text-shadow: 0 0 40px rgba(255, 255, 255, 0.12);
+        font-variant-numeric: tabular-nums;
+      }
+      .boot-shell-pct-suffix {
+        font-size: 0.95rem;
+        font-weight: 500;
+        color: rgba(255, 255, 255, 0.35);
+      }
+      .boot-shell-footer-body {
+        min-height: 3.25rem;
+        width: 100%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+      }
+      .boot-shell-hint {
+        margin: 0;
+        font-size: 0.72rem;
+        letter-spacing: 0.22em;
+        text-transform: uppercase;
+        color: rgba(255, 255, 255, 0.42);
+      }
+      @media (min-width: 1024px) {
+        .boot-shell-inner {
+          backdrop-filter: blur(18px);
+          -webkit-backdrop-filter: blur(18px);
+        }
+      }
     </style>
   </head>
   <body>
-    <div id="app"></div>
-    <script type="module" src="/src/main.ts"></script>
+    <div id="app">
+      <div class="boot-shell" aria-busy="true" aria-live="polite">
+        <div class="boot-shell-inner">
+          <div class="boot-shell-brand">
+            <h1 class="boot-shell-title">Ali Khalil</h1>
+            <p class="boot-shell-tagline">Portfolio</p>
+          </div>
+          <div class="boot-shell-bar-wrap" aria-hidden="true">
+            <div class="boot-shell-bar-track"></div>
+          </div>
+          <div class="boot-shell-footer">
+            <p class="boot-shell-pct" aria-hidden="true">
+              <span class="boot-shell-pct-value">000</span><span class="boot-shell-pct-suffix">%</span>
+            </p>
+            <div class="boot-shell-footer-body">
+              <p class="boot-shell-hint">Preparing experience</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <script type="module" src="/src/main.ts" fetchpriority="high"></script>
   </body>
 </html>

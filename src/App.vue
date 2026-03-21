@@ -5,11 +5,12 @@
     :loading-complete="loadingComplete"
     @start="onStart"
   />
-  <template v-else>
+  <!-- After Enter: layout + home chunk so initial load isn’t parsing layout/useCarIntro + all sections (mobile TBT). -->
+  <template v-if="bootstrapComplete && hasStarted">
     <DefaultLayout>
-      <RouterView />
+      <RouterView v-if="homeRouteReady" />
     </DefaultLayout>
-    <AppToast :toasts="toasts" @remove="removeToast" />
+    <AppToast v-if="homeRouteReady" :toasts="toasts" @remove="removeToast" />
   </template>
   <!-- Above game loader (z-index 2147483000) so mute is always reachable -->
   <SoundToggleButton
@@ -18,35 +19,75 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue';
-import DefaultLayout from './layout/index.vue';
-import AppToast from './components/global/AppToast.vue';
+import { ref, onMounted, watch, defineAsyncComponent } from 'vue';
+
+const DefaultLayout = defineAsyncComponent(() => import('./layout/index.vue'));
+const AppToast = defineAsyncComponent(() => import('./components/global/AppToast.vue'));
 import AppGameLoader from './components/AppGameLoader.vue';
 import SoundToggleButton from './components/SoundToggleButton.vue';
 import { useToast } from './composables/useToast';
+import { carIntroStartRequested } from './composables/appLoadGate';
+import { shouldSkipHeavyIntro } from './utils/perfSkip';
 import { runAppBootstrap } from './bootstrap/runAppBootstrap';
 
 const { toasts, remove: removeToast } = useToast();
 
 const loadProgress = ref(0);
 const loadingComplete = ref(false);
+const bootstrapComplete = ref(false);
 const hasStarted = ref(false);
+const homeRouteReady = ref(false);
+
+function scheduleHomeRoute() {
+  const show = () => {
+    homeRouteReady.value = true;
+  };
+  /* Narrow viewports: shorter idle cap so home mounts soon after Enter without a long queued task. */
+  const idleCap = shouldSkipHeavyIntro() ? 900 : 2000;
+  if (typeof requestIdleCallback !== 'undefined') {
+    requestIdleCallback(show, { timeout: idleCap });
+  } else {
+    setTimeout(show, shouldSkipHeavyIntro() ? 48 : 120);
+  }
+}
 
 onMounted(async () => {
   document.body.style.overflow = 'hidden';
   try {
     await runAppBootstrap((p) => {
-      loadProgress.value = p;
+      loadProgress.value = Math.round(p * 0.92);
     });
+    bootstrapComplete.value = true;
+    loadProgress.value = 92;
   } catch (e) {
     console.error('App bootstrap failed', e);
-  } finally {
+    bootstrapComplete.value = true;
     loadProgress.value = 100;
     loadingComplete.value = true;
   }
 });
 
+watch(
+  bootstrapComplete,
+  (boot) => {
+    if (!boot) return;
+    loadProgress.value = 100;
+    loadingComplete.value = true;
+  },
+  { immediate: true }
+);
+
+watch(
+  [hasStarted, bootstrapComplete],
+  ([started, boot]) => {
+    if (!boot || !started) return;
+    scheduleHomeRoute();
+  },
+  { immediate: true }
+);
+
 function onStart() {
+  carIntroStartRequested.value = true;
   hasStarted.value = true;
   document.body.style.overflow = '';
 }

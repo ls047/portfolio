@@ -1,9 +1,26 @@
 import { ref, onMounted, onBeforeUnmount, watch, nextTick, type Ref } from 'vue';
+import { carIntroSceneReady, carIntroStartRequested } from './appLoadGate';
 import { siteSoundMuted } from './siteSound';
-import * as THREE from 'three';
-import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
+import type {
+  AmbientLight,
+  BufferGeometry,
+  CanvasTexture,
+  DirectionalLight,
+  Group,
+  Material,
+  Mesh,
+  MeshBasicMaterial,
+  MeshStandardMaterial,
+  Object3D,
+  PerspectiveCamera,
+  PointLight,
+  Scene,
+  Texture,
+  WebGLRenderer,
+} from 'three';
 
 import carModelUrl from '@/assets/1987_buick_grand_national_regal_gnx.glb?url';
+import { shouldSkipHeavyIntro } from '@/utils/perfSkip';
 import { preloadCctvGlb } from '@/utils/preloadCctvGlb';
 import skidSfxUrl from '@/audio/ES_Car, Skid To Stop, Tire Squeal - Epidemic Sound.mp3';
 import lampFlickerSfxUrl from '@/audio/freesound_community-fluorescent-lamp-flickering-17625.mp3';
@@ -53,6 +70,22 @@ function doubleRaf(): Promise<void> {
   });
 }
 
+/** Defer heavy Three.js parse/compile until the browser has painted the loader (improves FCP / TBT on mobile Lighthouse). */
+function waitForIdleThenThree(): Promise<void> {
+  return new Promise((resolve) => {
+    if (typeof window === 'undefined') {
+      resolve();
+      return;
+    }
+    const ric = window.requestIdleCallback;
+    if (typeof ric === 'function') {
+      ric(() => resolve(), { timeout: 1800 });
+    } else {
+      window.setTimeout(resolve, 320);
+    }
+  });
+}
+
 export function useCarIntro(containerRef: Ref<HTMLElement | null>) {
   const contentOpacity = ref(0);
   const introPhase = ref<CarIntroPhase>('idle');
@@ -70,29 +103,33 @@ export function useCarIntro(containerRef: Ref<HTMLElement | null>) {
     driftProgress.value = 0;
     bootLinesRevealed.value = 3;
     introContentReady.value = true;
+    carIntroSceneReady.value = true;
   }
 
-  let scene: THREE.Scene;
-  let camera: THREE.PerspectiveCamera;
-  let renderer: THREE.WebGLRenderer;
-  let car: THREE.Group | null = null;
-  let headlightLeft: THREE.PointLight;
-  let headlightRight: THREE.PointLight;
-  let rearLightLeft: THREE.PointLight;
-  let rearLightRight: THREE.PointLight;
-  let headlightLenses: { mesh: THREE.Mesh; mat: THREE.MeshBasicMaterial }[] = [];
-  let headlightOverlays: THREE.MeshBasicMaterial[] = []; // scene-level overlays for guaranteed visibility
-  let headlightOverlayMeshes: THREE.Mesh[] = []; // for cleanup
-  let overlayTex: THREE.CanvasTexture | null = null;
-  let overlayGeo: THREE.BufferGeometry | null = null;
-  let lightFloodMesh: THREE.Mesh | null = null; // circular light that expands to fill screen
-  let skidMarksGroup: THREE.Group;
-  let smokeGroup: THREE.Group;
-  let groundPlane: THREE.Mesh | null = null;
-  let groundRoadTexture: THREE.CanvasTexture | null = null;
-  let screenPlane: THREE.Mesh | null = null;
-  let ambientLight: THREE.AmbientLight | null = null;
-  let dirLight: THREE.DirectionalLight | null = null;
+  /** Runtime namespace — assigned only after `import('three')` (keeps three chunk off initial parse). */
+  let THREE!: typeof import('three');
+
+  let scene: Scene;
+  let camera: PerspectiveCamera;
+  let renderer: WebGLRenderer;
+  let car: Group | null = null;
+  let headlightLeft: PointLight;
+  let headlightRight: PointLight;
+  let rearLightLeft: PointLight;
+  let rearLightRight: PointLight;
+  let headlightLenses: { mesh: Mesh; mat: MeshBasicMaterial }[] = [];
+  let headlightOverlays: MeshBasicMaterial[] = []; // scene-level overlays for guaranteed visibility
+  let headlightOverlayMeshes: Mesh[] = []; // for cleanup
+  let overlayTex: CanvasTexture | null = null;
+  let overlayGeo: BufferGeometry | null = null;
+  let lightFloodMesh: Mesh | null = null; // circular light that expands to fill screen
+  let skidMarksGroup: Group;
+  let smokeGroup: Group;
+  let groundPlane: Mesh | null = null;
+  let groundRoadTexture: CanvasTexture | null = null;
+  let screenPlane: Mesh | null = null;
+  let ambientLight: AmbientLight | null = null;
+  let dirLight: DirectionalLight | null = null;
   let introDisposed = false;
   let introWebglReady = false;
   let introGpuTornDown = false;
@@ -101,7 +138,7 @@ export function useCarIntro(containerRef: Ref<HTMLElement | null>) {
   let frameId = 0;
 
   /** Procedural asphalt + lane markings (matches PlaneGeometry UVs: U ≈ world X, V ≈ world Z). */
-  function createRoadTexture(): THREE.CanvasTexture {
+  function createRoadTexture(): CanvasTexture {
     const w = 512;
     const h = 384;
     const canvas = document.createElement('canvas');
@@ -259,7 +296,7 @@ export function useCarIntro(containerRef: Ref<HTMLElement | null>) {
     return group;
   }
 
-  function addHeadlights(carGroup: THREE.Group, scale: number) {
+  function addHeadlights(carGroup: Group, scale: number) {
     // Car is scaled to 2.5 total; front is 1.25 from center. Local pos = 1.25/scale to reach front
     const offset = 1.25 / scale;
     const headlightWhite = 0xffffff;
@@ -317,9 +354,9 @@ export function useCarIntro(containerRef: Ref<HTMLElement | null>) {
     renderer.setSize(containerRef.value.clientWidth, containerRef.value.clientHeight);
   }
 
-  function disposeObject3DTree(root: THREE.Object3D) {
+  function disposeObject3DTree(root: Object3D) {
     root.traverse((obj) => {
-      const mesh = obj as THREE.Mesh;
+      const mesh = obj as Mesh;
       if (mesh.geometry) mesh.geometry.dispose();
       const mat = mesh.material;
       if (!mat) return;
@@ -328,8 +365,8 @@ export function useCarIntro(containerRef: Ref<HTMLElement | null>) {
         const rec = m as unknown as Record<string, unknown>;
         for (const key of Object.keys(rec)) {
           const v = rec[key];
-          if (v && typeof v === 'object' && 'isTexture' in v && (v as THREE.Texture).isTexture) {
-            (v as THREE.Texture).dispose();
+          if (v && typeof v === 'object' && 'isTexture' in v && (v as Texture).isTexture) {
+            (v as Texture).dispose();
           }
         }
         m.dispose();
@@ -447,11 +484,32 @@ export function useCarIntro(containerRef: Ref<HTMLElement | null>) {
   });
 
   onMounted(() => {
-    if (!containerRef.value) return;
+    if (!containerRef.value) {
+      revealContentFallback();
+      return;
+    }
 
-    void (async () => {
+    if (shouldSkipHeavyIntro()) {
+      revealContentFallback();
+      return;
+    }
+
+    let introKickoff = false;
+    function startIntro() {
+      if (introKickoff) return;
+      introKickoff = true;
+      void (async () => {
       await waitForPageLoaded();
       if (carIntroCancelled || !containerRef.value) return;
+
+      /* Yield so the game loader / first paint can commit before parsing Three + compiling shaders (cuts TBT on mobile). */
+      await doubleRaf();
+      if (carIntroCancelled || !containerRef.value) return;
+
+      await waitForIdleThenThree();
+      if (carIntroCancelled || !containerRef.value) return;
+
+      THREE = await import('three');
 
       void fetch(CAR_MODEL_URL, { mode: 'cors', credentials: 'same-origin' }).catch(() => {});
 
@@ -624,6 +682,7 @@ export function useCarIntro(containerRef: Ref<HTMLElement | null>) {
         if (!carIntroCancelled) introContentReady.value = true;
       }
 
+      const GLTFLoader = (await import('three/examples/jsm/loaders/GLTFLoader.js')).GLTFLoader;
       const loader = new GLTFLoader();
       try {
         const gltf = await loader.loadAsync(CAR_MODEL_URL);
@@ -649,15 +708,16 @@ export function useCarIntro(containerRef: Ref<HTMLElement | null>) {
         // Enable transparency on car materials for light-flood fade-out
         car.traverse((child) => {
           if (child instanceof THREE.Mesh && child.material) {
-            const mat = child.material as THREE.Material;
-            if ('transparent' in mat) (mat as THREE.MeshStandardMaterial).transparent = true;
-            if ('opacity' in mat) (mat as THREE.MeshStandardMaterial).opacity = 1;
+            const mat = child.material as Material;
+            if ('transparent' in mat) (mat as MeshStandardMaterial).transparent = true;
+            if ('opacity' in mat) (mat as MeshStandardMaterial).opacity = 1;
           }
         });
         scene.add(car);
 
         renderer.compile(scene, camera);
         renderer.render(scene, camera);
+        carIntroSceneReady.value = true;
 
         preloadSkidSfx();
 
@@ -720,8 +780,8 @@ export function useCarIntro(containerRef: Ref<HTMLElement | null>) {
           skidMarksGroup.position.set(0, -0.999, 0); // offset baked into mesh positions
           skidMarksGroup.updateMatrixWorld(true); // ensure position change is applied
           skidMarksGroup.renderOrder = 1;
-          (skidMarksGroup.children as THREE.Mesh[]).forEach((m) => {
-            const mat = m.material as THREE.MeshBasicMaterial;
+          (skidMarksGroup.children as Mesh[]).forEach((m) => {
+            const mat = m.material as MeshBasicMaterial;
             const segP = m.userData.segmentProgress as number;
             // Reveal as rear tires pass - synced with smoke (both from sliding rear wheels)
             const rearOffset = 0.05; // marks appear where rear tires have been
@@ -742,8 +802,8 @@ export function useCarIntro(containerRef: Ref<HTMLElement | null>) {
             car.position.z + rearZ * 1.8
           );
           smokeGroup.rotation.y = 0; // smoke stays fixed, does not turn with car
-          (smokeGroup.children as THREE.Mesh[]).forEach((m) => {
-            const mat = m.material as THREE.MeshBasicMaterial;
+          (smokeGroup.children as Mesh[]).forEach((m) => {
+            const mat = m.material as MeshBasicMaterial;
             const driftProgress = p * 1.2;
             mat.opacity = Math.min(0.85, driftProgress) * 0.7;
             m.position.y = m.userData.baseY + Math.sin(t * 2.5 + m.userData.phase) * m.userData.riseSpeed;
@@ -753,8 +813,8 @@ export function useCarIntro(containerRef: Ref<HTMLElement | null>) {
           car.position.set(2.5, 0, 3.5);
           car.rotation.y = Math.PI;
           skidMarksGroup.visible = true;
-          (skidMarksGroup.children as THREE.Mesh[]).forEach((m) => {
-            (m.material as THREE.MeshBasicMaterial).opacity = 0.85;
+          (skidMarksGroup.children as Mesh[]).forEach((m) => {
+            (m.material as MeshBasicMaterial).opacity = 0.85;
           });
           smokeGroup.visible = false;
 
@@ -793,14 +853,14 @@ export function useCarIntro(containerRef: Ref<HTMLElement | null>) {
             const fadeOut = 1 - eased;
             const skidMarksFadeOut = Math.max(0, 1 - eased * 1.4);
             headlightOverlays.forEach((mat) => { mat.opacity = fadeOut; });
-            (skidMarksGroup.children as THREE.Mesh[]).forEach((m) => {
-              (m.material as THREE.MeshBasicMaterial).opacity = 0.85 * skidMarksFadeOut;
+            (skidMarksGroup.children as Mesh[]).forEach((m) => {
+              (m.material as MeshBasicMaterial).opacity = 0.85 * skidMarksFadeOut;
             });
             car.traverse((child) => {
               if (child instanceof THREE.Mesh && child.material) {
                 const mats = Array.isArray(child.material) ? child.material : [child.material];
                 mats.forEach((mat) => {
-                  if ('opacity' in mat) (mat as THREE.MeshStandardMaterial).opacity = fadeOut;
+                  if ('opacity' in mat) (mat as MeshStandardMaterial).opacity = fadeOut;
                 });
               }
             });
@@ -809,12 +869,12 @@ export function useCarIntro(containerRef: Ref<HTMLElement | null>) {
               lightFloodMesh.visible = true;
               lightFloodMesh.scale.setScalar(25);
               headlightOverlays.forEach((mat) => { mat.opacity = 0; });
-              (skidMarksGroup.children as THREE.Mesh[]).forEach((m) => {
-                (m.material as THREE.MeshBasicMaterial).opacity = 0;
+              (skidMarksGroup.children as Mesh[]).forEach((m) => {
+                (m.material as MeshBasicMaterial).opacity = 0;
               });
               if (car) car.traverse((child) => {
                 if (child instanceof THREE.Mesh && child.material && 'opacity' in child.material) {
-                  (child.material as THREE.MeshStandardMaterial).opacity = 0;
+                  (child.material as MeshStandardMaterial).opacity = 0;
                 }
               });
             }
@@ -856,7 +916,16 @@ export function useCarIntro(containerRef: Ref<HTMLElement | null>) {
       }
     }
 
-    })();
+      })();
+    }
+
+    watch(
+      carIntroStartRequested,
+      (requested) => {
+        if (requested) startIntro();
+      },
+      { immediate: true },
+    );
   });
 
   /** After intro: stop rAF, dispose car-era + environment meshes, tear down WebGL (no idle GPU). */
@@ -874,7 +943,7 @@ export function useCarIntro(containerRef: Ref<HTMLElement | null>) {
     if (lightFloodMesh) {
       scene.remove(lightFloodMesh);
       lightFloodMesh.geometry.dispose();
-      const fm = lightFloodMesh.material as THREE.MeshBasicMaterial;
+      const fm = lightFloodMesh.material as MeshBasicMaterial;
       if (fm.map) fm.map.dispose();
       fm.dispose();
       lightFloodMesh = null;
@@ -882,7 +951,7 @@ export function useCarIntro(containerRef: Ref<HTMLElement | null>) {
     if (groundPlane) {
       scene.remove(groundPlane);
       groundPlane.geometry.dispose();
-      const gm = groundPlane.material as THREE.MeshStandardMaterial;
+      const gm = groundPlane.material as MeshStandardMaterial;
       if (gm.map) {
         gm.map.dispose();
         groundRoadTexture = null;
@@ -893,7 +962,7 @@ export function useCarIntro(containerRef: Ref<HTMLElement | null>) {
     if (screenPlane) {
       scene.remove(screenPlane);
       screenPlane.geometry.dispose();
-      (screenPlane.material as THREE.Material).dispose();
+      (screenPlane.material as Material).dispose();
       screenPlane = null;
     }
     if (ambientLight) {
@@ -917,10 +986,10 @@ export function useCarIntro(containerRef: Ref<HTMLElement | null>) {
       const lose = gl?.getExtension?.('WEBGL_lose_context') as { loseContext: () => void } | undefined;
       lose?.loseContext();
     }
-    renderer = null as unknown as THREE.WebGLRenderer;
+    renderer = null as unknown as WebGLRenderer;
     // Drop refs so car / road / scene graphs can't linger in JS memory
-    scene = undefined as unknown as THREE.Scene;
-    camera = undefined as unknown as THREE.PerspectiveCamera;
+    scene = undefined as unknown as Scene;
+    camera = undefined as unknown as PerspectiveCamera;
   }
 
   function disposeIntroObjects() {
@@ -931,7 +1000,7 @@ export function useCarIntro(containerRef: Ref<HTMLElement | null>) {
     if (car) {
       scene.remove(car);
       car.traverse((obj) => {
-        const mesh = obj as THREE.Mesh;
+        const mesh = obj as Mesh;
         if (mesh.geometry) mesh.geometry.dispose();
         const mat = mesh.material;
         if (mat) {
@@ -940,8 +1009,8 @@ export function useCarIntro(containerRef: Ref<HTMLElement | null>) {
             const rec = m as unknown as Record<string, unknown>;
             for (const key of Object.keys(rec)) {
               const v = rec[key];
-              if (v && typeof v === 'object' && 'isTexture' in v && (v as THREE.Texture).isTexture) {
-                (v as THREE.Texture).dispose();
+              if (v && typeof v === 'object' && 'isTexture' in v && (v as Texture).isTexture) {
+                (v as Texture).dispose();
               }
             }
             m.dispose();
@@ -954,10 +1023,10 @@ export function useCarIntro(containerRef: Ref<HTMLElement | null>) {
     // Skid marks (each mesh: cloned material, **shared** streak texture — dispose map once)
     if (skidMarksGroup) {
       scene.remove(skidMarksGroup);
-      let streakMap: THREE.Texture | undefined;
-      (skidMarksGroup.children as THREE.Mesh[]).forEach((m) => {
+      let streakMap: Texture | undefined;
+      (skidMarksGroup.children as Mesh[]).forEach((m) => {
         if (m.geometry) m.geometry.dispose();
-        const mat = m.material as THREE.MeshBasicMaterial | undefined;
+        const mat = m.material as MeshBasicMaterial | undefined;
         if (mat) {
           if (mat.map) streakMap = mat.map;
           mat.dispose();
@@ -969,8 +1038,8 @@ export function useCarIntro(containerRef: Ref<HTMLElement | null>) {
     // Smoke (all meshes share one material + texture — dispose once)
     if (smokeGroup) {
       scene.remove(smokeGroup);
-      const children = smokeGroup.children as THREE.Mesh[];
-      const sharedMat = children[0]?.material as THREE.MeshBasicMaterial | undefined;
+      const children = smokeGroup.children as Mesh[];
+      const sharedMat = children[0]?.material as MeshBasicMaterial | undefined;
       children.forEach((m) => {
         if (m.geometry) m.geometry.dispose();
       });
@@ -983,7 +1052,7 @@ export function useCarIntro(containerRef: Ref<HTMLElement | null>) {
     // Headlight overlays
     headlightOverlayMeshes.forEach((mesh) => {
       scene.remove(mesh);
-      if (mesh.material) (mesh.material as THREE.Material).dispose();
+      if (mesh.material) (mesh.material as Material).dispose();
     });
     headlightOverlayMeshes = [];
     headlightOverlays = [];
