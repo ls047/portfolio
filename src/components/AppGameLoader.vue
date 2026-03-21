@@ -1,8 +1,11 @@
 <template>
   <div
     class="game-loader"
+    :class="{ 'game-loader--ready': loadingComplete }"
     aria-labelledby="game-loader-title"
     :aria-busy="!loadingComplete"
+    role="presentation"
+    @click="tryStart"
   >
     <div class="game-loader-ambient" aria-hidden="true" />
     <div class="game-loader-vignette" aria-hidden="true" />
@@ -46,7 +49,7 @@
             v-else
             type="button"
             class="game-loader-start"
-            @click="emit('start')"
+            @click.stop="tryStart"
           >
             <span class="game-loader-start-bg" aria-hidden="true" />
             <span class="game-loader-start-label">Enter</span>
@@ -59,7 +62,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue';
+import { computed, onMounted, onBeforeUnmount } from 'vue';
 import { useAppConfig } from '@/composables/useAppConfig';
 
 const props = defineProps<{
@@ -72,6 +75,27 @@ const emit = defineEmits<{
 }>();
 
 const { appTitle } = useAppConfig();
+
+function tryStart(): void {
+  if (!props.loadingComplete) return;
+  emit('start');
+}
+
+function onGlobalKeydown(e: KeyboardEvent): void {
+  if (!props.loadingComplete) return;
+  if (e.key === 'Enter' || e.key === ' ') {
+    e.preventDefault();
+    tryStart();
+  }
+}
+
+onMounted(() => {
+  window.addEventListener('keydown', onGlobalKeydown);
+});
+
+onBeforeUnmount(() => {
+  window.removeEventListener('keydown', onGlobalKeydown);
+});
 
 const clampedProgress = computed(() =>
   Math.max(0, Math.min(100, Math.round(props.progress))),
@@ -95,6 +119,10 @@ const paddedPercent = computed(() =>
   color: #e8e8e8;
   font-family: var(--font-primary, system-ui, sans-serif);
   -webkit-font-smoothing: antialiased;
+}
+
+.game-loader--ready {
+  cursor: pointer;
 }
 
 /* Spotlight + vignette (matches main site mood) */
