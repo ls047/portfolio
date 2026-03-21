@@ -52,7 +52,7 @@
                 />
               </div>
               <a
-                v-if="project.link"
+                v-if="project.link && !project.organizationProject"
                 :href="project.link"
                 target="_blank"
                 rel="noopener noreferrer"

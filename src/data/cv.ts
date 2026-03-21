@@ -108,8 +108,8 @@ export const cvData: CvData = {
         'Built as a focused security-minded frontend: generate passwords, scan links before you open them, and use QR flows where sharing secrets safely matters. The UI keeps dense features approachable with clear steps and Tailwind-driven layout.',
       tech: ['Vue.js', 'Tailwind CSS'],
       image: '/images/hashilo.png',
-      link: 'https://hashillo.example.com',
-      githubUrl: 'https://github.com/your-username/hashillo',
+      link: 'https://password-suit.vercel.app/',
+      githubUrl: 'https://github.com/ls047/password-suit',
     },
     {
       name: 'IQ Test System',
@@ -154,6 +154,19 @@ export const cvData: CvData = {
         'Brand-led marketing site: scroll-linked storytelling, scent and variant highlights, gallery, and strong CTA blocks—all responsive and lightweight enough to deploy as a static-feeling Vue + Tailwind frontend.',
       tech: ['Vue.js', 'Tailwind CSS'],
       image: '/images/SKY.png',
+      link: 'https://sky-reed-diffuser.vercel.app/',
+      githubUrl: 'https://github.com/ls047/SKY-reed-diffuser',
+    },
+    {
+      name: 'Weatherino',
+      description:
+        'A simple weather app built with Vue.js and Tailwind CSS, powered by the OpenWeather API for current conditions and lookups.',
+      detail:
+        'Small, focused UI for checking weather by location: Tailwind-driven layout, API-backed data, and a straightforward flow for everyday use.',
+      tech: ['Vue.js', 'Tailwind CSS', 'OpenWeather API'],
+      image: '/images/weatherino.png',
+      link: 'https://weatherino-plum.vercel.app/',
+      githubUrl: 'https://github.com/ls047/weatherino',
     },
     {
       name: 'five-years-plan',
@@ -170,8 +183,7 @@ export const cvData: CvData = {
       detail:
         'Event operations in one place: contestant auth, QR check-in materials, acceptance and judging views, timed questions, and an embedded coding surface so teams never leave the platform mid-competition.',
       tech: ['Vue.js', 'Tailwind CSS', 'WebSocket'],
-      link: 'https://superhackathon.example.com',
-      githubUrl: 'https://github.com/your-username/superhackathon-2025',
+      organizationProject: true,
     },
     {
       name: 'Nova Dev Sprint',
@@ -179,8 +191,7 @@ export const cvData: CvData = {
       detail:
         'Iteration on the hackathon formula: registration and accounts, live messaging, QR utilities, and a tighter coding experience with WebSocket-backed real-time updates where it counts.',
       tech: ['Vue.js', 'Tailwind CSS', 'WebSocket'],
-      link: 'https://nova-sprint.example.com',
-      githubUrl: 'https://github.com/your-username/nova-dev-sprint',
+      organizationProject: true,
     },
     {
       name: 'tic tac toe',
@@ -188,8 +199,7 @@ export const cvData: CvData = {
       detail:
         'Real-time matches over WebSockets with a minimal Tailwind UI—quick rounds, clear board state, and no page reloads between moves.',
       tech: ['Vue.js', 'Tailwind CSS', 'WebSocket'],
-      link: 'https://tic-tac-toe.example.com',
-      githubUrl: 'https://github.com/your-username/tic-tac-toe',
+      organizationProject: true,
     },
     {
       name: 'siantafic affairs',

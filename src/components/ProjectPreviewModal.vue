@@ -87,7 +87,7 @@
               class="mt-3 flex flex-col gap-2.5 sm:mt-4 sm:flex-row sm:flex-wrap sm:items-center"
             >
               <a
-                v-if="project.link"
+                v-if="project.link && !project.organizationProject"
                 :href="project.link"
                 target="_blank"
                 rel="noopener noreferrer"
@@ -192,7 +192,7 @@ const hasAnyProjectLinks = computed(() => {
   const p = props.project;
   if (!p) return false;
   return Boolean(
-    p.link ||
+    (p.link && !p.organizationProject) ||
       (p.githubUrl && !p.organizationProject) ||
       p.organizationProject
   );
