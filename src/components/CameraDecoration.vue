@@ -42,13 +42,15 @@
   const AIM_PITCH_RANGE = reduceMotion ? 0.2 : 0.32;
   /** Slightly higher than 60fps rAF — CCTV runs on a ~20Hz interval so each step covers more ground. */
   const ROT_SMOOTH = reduceMotion ? 0.45 : 0.2;
+  /** Compact: stronger lerp so the dome keeps up with the same-phase spotlight (desktop can stay softer). */
+  const ROT_SMOOTH_COMPACT = reduceMotion ? 0.45 : 0.58;
 
   /**
    * Horizontal aim uses the same numbers as the radial gradient: u = (lx − baseX) / amp ≡ sin(phase).
    * `SWEEP_YAW_LIGHT_COUPLE_SIGN` flips if the GLB’s +Y reads opposite to on-screen glow travel.
    *
-   * Compact: same rail position as desktop, but glow sits low — **nod down** at bottom center; **no** strong
-   * `HEAD_YAW_BIAS` “look left toward column” (that’s desktop-only).
+   * Compact: glow sits low — nod toward it; horizontal sweep uses the same `u` scale as desktop (no 0.42 damp)
+   * so pan tracks the radial gradient. `HEAD_YAW_BIAS` stays desktop-only.
    */
   function aimRotationFromReadingLight(): { targetY: number; targetX: number } {
     const host = threeHostRef.value;
@@ -71,8 +73,8 @@
       const hy = rect.top + rect.height * 0.5;
       const dy = ly - hy;
       const ny = Math.max(0, Math.min(1, dy / Math.max(vh * 0.34, 110)));
-      const targetY = SWEEP_YAW_LIGHT_COUPLE_SIGN * u * (reduceMotion ? 0.06 : SWEEP_YAW_MAG * 0.42);
-      const targetX = ny * (reduceMotion ? 0.3 : 0.84) + c * 0.045;
+      const targetY = SWEEP_YAW_LIGHT_COUPLE_SIGN * u * (reduceMotion ? 0.06 : SWEEP_YAW_MAG);
+      const targetX = ny * (reduceMotion ? 0.3 : 0.84) + c * SWEEP_PITCH_MAG * 0.55;
       return { targetY, targetX };
     }
 
@@ -95,8 +97,12 @@
   let modelRoot: THREE.Group | null = null;
   /** PTZ head from GLB (`cam_01`); rotation aims at reading-light center in viewport space. */
   let cctvHeadRef: THREE.Object3D | null = null;
-  /** ~20fps — avoids 60fps rAF wakeups; decorative rail doesn’t need display sync. */
-  const CCTV_TICK_MS = 50;
+  /** ~20fps desktop; compact ~60Hz so PTZ tracks the sweep with minimal lag. */
+  function cctvTickMs(): number {
+    if (typeof window === 'undefined') return 50;
+    return window.innerWidth < 1024 ? 16 : 50;
+  }
+
   let cctvIntervalId = 0;
   let resizeObs: ResizeObserver | null = null;
   /** False during intro (camera rail hidden) — keep rAF but skip draws to avoid extra GPU while car intro runs. */
@@ -160,14 +166,16 @@
     if (!renderer || !scene || !perspectiveCam) return;
     if (!tickRenderEnabled) return;
 
+    const vw = typeof window !== 'undefined' ? window.innerWidth : 1024;
+    const smooth = vw < 1024 ? ROT_SMOOTH_COMPACT : ROT_SMOOTH;
     const { targetY, targetX } = aimRotationFromReadingLight();
     const head = cctvHeadRef;
     if (head) {
-      head.rotation.y += (targetY - head.rotation.y) * ROT_SMOOTH;
-      head.rotation.x += (targetX - head.rotation.x) * ROT_SMOOTH;
+      head.rotation.y += (targetY - head.rotation.y) * smooth;
+      head.rotation.x += (targetX - head.rotation.x) * smooth;
     } else if (modelRoot) {
-      modelRoot.rotation.y += (targetY - modelRoot.rotation.y) * ROT_SMOOTH;
-      modelRoot.rotation.x += (targetX - modelRoot.rotation.x) * ROT_SMOOTH;
+      modelRoot.rotation.y += (targetY - modelRoot.rotation.y) * smooth;
+      modelRoot.rotation.x += (targetX - modelRoot.rotation.x) * smooth;
     }
 
     renderer.render(scene, perspectiveCam);
@@ -176,7 +184,7 @@
   function startCctvInterval() {
     if (cctvIntervalId) return;
     if (typeof document !== 'undefined' && document.hidden) return;
-    cctvIntervalId = window.setInterval(cctvRenderStep, CCTV_TICK_MS);
+    cctvIntervalId = window.setInterval(cctvRenderStep, cctvTickMs());
   }
 
   function stopCctvInterval() {
@@ -325,8 +333,13 @@
 
       root.position.sub(center);
       root.scale.setScalar(scale);
-      root.rotation.y = -Math.PI * 0.06;
-      root.rotation.x = -0.05;
+      if (compactFit) {
+        root.rotation.y = -Math.PI * 0.29 + 0.16;
+        root.rotation.x = -0.9;
+      } else {
+        root.rotation.y = -Math.PI * 0.06;
+        root.rotation.x = -0.05;
+      }
       root.visible = true;
       root.traverse((o) => {
         o.visible = true;
