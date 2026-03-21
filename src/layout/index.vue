@@ -10,6 +10,7 @@
     <div
       ref="contentOverlayRef"
       class="content-overlay content-scroll relative z-10"
+      :class="{ 'content-scroll--locked': !carIntroScrollUnlocked }"
       :style="contentOverlayOpacityStyle"
     >
       <slot />
@@ -50,6 +51,7 @@ import {
 } from '../utils/readingLightSweep';
 import { syncReadingVisualInks } from '../utils/syncReadingVisualInks';
 import { shouldSkipHeavyIntro } from '../utils/perfSkip';
+import { carIntroScrollUnlocked } from '../composables/appLoadGate';
 /** Own chunk: defers CCTV Three.js + GLTF path until layout mounts (after loader), trimming initial JS heap. */
 const CameraDecoration = defineAsyncComponent(() => import('../components/CameraDecoration.vue'));
 import IntroNarrativeOverlay from '../components/IntroNarrativeOverlay.vue';
@@ -252,6 +254,13 @@ watch(contentOpacity, (opacity) => {
   scroll-behavior: auto;
   scrollbar-width: none;
   -ms-overflow-style: none;
+}
+
+/* No portfolio scroll until car scene + flood reveal finished. */
+.content-overlay.content-scroll.content-scroll--locked {
+  overflow: hidden;
+  overscroll-behavior: none;
+  touch-action: none;
 }
 
 .content-overlay.content-scroll::-webkit-scrollbar {

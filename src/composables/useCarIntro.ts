@@ -1,5 +1,5 @@
 import { ref, onMounted, onBeforeUnmount, watch, nextTick, type Ref } from 'vue';
-import { carIntroSceneReady, carIntroStartRequested } from './appLoadGate';
+import { carIntroSceneReady, carIntroScrollUnlocked, carIntroStartRequested } from './appLoadGate';
 import { siteSoundMuted } from './siteSound';
 import type {
   AmbientLight,
@@ -1064,6 +1064,14 @@ export function useCarIntro(containerRef: Ref<HTMLElement | null>) {
     carIntroCancelled = true;
     shutdownIntroWebGL();
   });
+
+  watch(
+    contentOpacity,
+    (v) => {
+      carIntroScrollUnlocked.value = v >= 1;
+    },
+    { immediate: true },
+  );
 
   return { contentOpacity, introPhase, driftProgress, bootLinesRevealed };
 }

@@ -5,3 +5,6 @@ export const carIntroSceneReady = ref(false);
 
 /** User clicked Enter — start the WebGL car intro (heavy path only). */
 export const carIntroStartRequested = ref(false);
+
+/** True when intro flood finished and portfolio content is revealed (`contentOpacity` ≥ 1). Unlocks body + scrollport. */
+export const carIntroScrollUnlocked = ref(false);

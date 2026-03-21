@@ -26,7 +26,7 @@ const AppToast = defineAsyncComponent(() => import('./components/global/AppToast
 import AppGameLoader from './components/AppGameLoader.vue';
 import SoundToggleButton from './components/SoundToggleButton.vue';
 import { useToast } from './composables/useToast';
-import { carIntroStartRequested } from './composables/appLoadGate';
+import { carIntroScrollUnlocked, carIntroStartRequested } from './composables/appLoadGate';
 import { shouldSkipHeavyIntro } from './utils/perfSkip';
 import { runAppBootstrap } from './bootstrap/runAppBootstrap';
 
@@ -86,9 +86,17 @@ watch(
   { immediate: true }
 );
 
+/** Keep body locked until car intro has revealed content (scroll lives on `.content-scroll` in layout). */
+watch(
+  carIntroScrollUnlocked,
+  (unlocked) => {
+    if (unlocked) document.body.style.overflow = '';
+  },
+  { immediate: true }
+);
+
 function onStart() {
   carIntroStartRequested.value = true;
   hasStarted.value = true;
-  document.body.style.overflow = '';
 }
 </script>
